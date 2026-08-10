@@ -1,0 +1,48 @@
+name: 部署 AI 投资研究看板
+
+on:
+  # 监听 dashboard-data.json / index.html 变化
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'dashboard-data.json'
+  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: '部署原因（可选）'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 避免重复部署
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

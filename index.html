@@ -1,0 +1,2583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 投资研究看板</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e17;
+  --bg-secondary: #0f1420;
+  --card: #131923;
+  --card-hover: #1a2030;
+  --border: #1f2937;
+  --border-light: #2a3441;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --accent: #f59e0b;
+  --accent-dim: #92400e;
+  --up: #10b981;
+  --up-bg: rgba(16, 185, 129, 0.12);
+  --down: #ef4444;
+  --down-bg: rgba(239, 68, 68, 0.12);
+  --info: #3b82f6;
+  --info-bg: rgba(59, 130, 246, 0.12);
+  --purple: #a855f7;
+  --purple-bg: rgba(168, 85, 247, 0.12);
+  --cyan: #06b6d4;
+  --cyan-bg: rgba(6, 182, 212, 0.12);
+  --orange: #f97316;
+  --orange-bg: rgba(249, 115, 22, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Outfit', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01";
+}
+
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ============== HEADER ============== */
+.header {
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.brand { display: flex; align-items: center; gap: 14px; }
+
+.brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0a0e17;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+}
+
+.brand-icon svg { width: 20px; height: 20px; stroke-width: 2.5; }
+
+.brand-text h1 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.brand-text .sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.live-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-feature-settings: "tnum";
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.live-time strong {
+  color: var(--accent);
+  font-weight: 500;
+  font-size: 13px;
+  display: block;
+}
+
+.actions { display: flex; align-items: center; gap: 6px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--text-secondary);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--card-hover);
+  color: var(--text-primary);
+  border-color: var(--text-dim);
+  transform: translateY(-1px);
+}
+
+.btn:active { transform: translateY(0); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #0a0e17;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: #d97706;
+  border-color: #d97706;
+  color: #0a0e17;
+}
+
+.btn svg { width: 14px; height: 14px; stroke-width: 2; }
+
+/* ============== TABS ============== */
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg);
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+
+.tab:hover { color: var(--text-secondary); }
+
+.tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.tab-icon {
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
+}
+
+.tab.active .tab-icon { opacity: 1; }
+
+.tab-badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  background: var(--card);
+  color: var(--text-muted);
+  border-radius: 10px;
+  font-weight: 600;
+  min-width: 22px;
+  text-align: center;
+}
+
+.tab.active .tab-badge {
+  background: var(--accent);
+  color: #0a0e17;
+}
+
+/* ============== MAIN ============== */
+.main {
+  flex: 1;
+  padding: 28px 32px 60px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.tab-content { display: none; animation: fadeIn 0.2s ease; }
+.tab-content.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============== ACTION BAR ============== */
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.action-bar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.action-bar-right { display: flex; align-items: center; gap: 8px; }
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title .icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+}
+
+.section-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ============== CARDS ============== */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  margin-bottom: 14px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card:hover { border-color: var(--border-light); }
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-actions { display: flex; gap: 6px; }
+
+.card-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.card-body h1, .card-body h2, .card-body h3 {
+  color: var(--text-primary);
+  margin: 16px 0 8px;
+  font-weight: 600;
+}
+.card-body h1 { font-size: 20px; }
+.card-body h2 {
+  font-size: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 24px;
+}
+.card-body h3 { font-size: 14px; color: var(--accent); }
+
+.card-body p { margin-bottom: 10px; }
+.card-body ul, .card-body ol {
+  margin: 8px 0 12px 20px;
+}
+.card-body li { margin-bottom: 4px; }
+
+.card-body strong { color: var(--text-primary); font-weight: 600; }
+.card-body code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+.card-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.card-body th {
+  background: var(--bg);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.card-body td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+}
+.card-body tr:last-child td { border-bottom: none; }
+
+.card-body blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--bg);
+  padding: 8px 14px;
+  margin: 10px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  border-radius: 0 6px 6px 0;
+}
+
+/* ============== TAGS / BADGES ============== */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 11px;
+  letter-spacing: 0.02em;
+}
+
+.tag-up { background: var(--up-bg); color: var(--up); border-color: rgba(16, 185, 129, 0.25); }
+.tag-down { background: var(--down-bg); color: var(--down); border-color: rgba(239, 68, 68, 0.25); }
+.tag-info { background: var(--info-bg); color: var(--info); border-color: rgba(59, 130, 246, 0.25); }
+.tag-warning { background: var(--warning-bg); color: var(--accent); border-color: rgba(245, 158, 11, 0.25); }
+.tag-purple { background: var(--purple-bg); color: var(--purple); border-color: rgba(168, 85, 247, 0.25); }
+.tag-cyan { background: var(--cyan-bg); color: var(--cyan); border-color: rgba(6, 182, 212, 0.25); }
+.tag-orange { background: var(--orange-bg); color: var(--orange); border-color: rgba(249, 115, 22, 0.25); }
+
+/* ============== EVENT TYPE COLORS ============== */
+.event-MA { background: var(--purple-bg); color: var(--purple); border-color: rgba(168, 85, 247, 0.3); }
+.event-Tender { background: var(--info-bg); color: var(--info); border-color: rgba(59, 130, 246, 0.3); }
+.event-Refinancing { background: var(--cyan-bg); color: var(--cyan); border-color: rgba(6, 182, 212, 0.3); }
+.event-Buyback { background: var(--up-bg); color: var(--up); border-color: rgba(16, 185, 129, 0.3); }
+.event-Unlock { background: var(--warning-bg); color: var(--accent); border-color: rgba(245, 158, 11, 0.3); }
+.event-Litigation { background: var(--down-bg); color: var(--down); border-color: rgba(239, 68, 68, 0.3); }
+.event-Index { background: var(--orange-bg); color: var(--orange); border-color: rgba(249, 115, 22, 0.3); }
+
+/* ============== EMPTY STATE ============== */
+.empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  color: var(--text-dim);
+  opacity: 0.4;
+  display: block;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.empty-text {
+  font-size: 13px;
+  color: var(--text-dim);
+  max-width: 400px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ============== COMPANY GRID ============== */
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.company-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.company-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.company-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.company-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 4px 0 10px;
+  color: var(--text-primary);
+}
+
+.company-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.company-snippet {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.company-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============== TIMELINE ============== */
+.timeline {
+  position: relative;
+  padding-left: 28px;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--border-light) 100%);
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 18px;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -24px;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+.timeline-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ============== FILTER CHIPS ============== */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--card);
+  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.chip:hover { color: var(--text-primary); border-color: var(--text-dim); }
+
+.chip.active {
+  background: var(--accent);
+  color: #0a0e17;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.chip-count {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 0 5px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+/* ============== SEARCH ============== */
+.search-input {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  padding: 8px 12px 8px 36px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 240px;
+  transition: all 0.15s;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>");
+  background-repeat: no-repeat;
+  background-position: 11px center;
+  background-size: 14px;
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+  width: 280px;
+}
+
+.search-input::placeholder { color: var(--text-dim); }
+
+/* ============== MODAL ============== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  animation: fadeIn 0.15s ease;
+}
+
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.modal-large { max-width: 920px; }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover { background: var(--bg); color: var(--text-primary); }
+
+.modal-body {
+  padding: 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ============== FORM ============== */
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-row label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.form-row label .req { color: var(--down); }
+
+.form-row input,
+.form-row select,
+.form-row textarea {
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  padding: 9px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.form-row textarea { resize: vertical; min-height: 100px; line-height: 1.6; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus { border-color: var(--accent); }
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-help {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ============== TOAST ============== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideUp 0.2s ease;
+}
+
+.toast-success { border-color: var(--up); }
+.toast-error { border-color: var(--down); }
+.toast-info { border-color: var(--info); }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ============== STATUS BAR ============== */
+.status-bar {
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-bar .left, .status-bar .right { display: flex; align-items: center; gap: 14px; }
+
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--up);
+  margin-right: 5px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ============== HISTORY LIST (早晚报历史) ============== */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 12px;
+}
+
+.history-item:hover {
+  border-color: var(--border-light);
+  background: var(--card-hover);
+}
+
+.history-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+
+.history-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.history-summary {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+/* ============== 周期观察 Bench Row ============== */
+.bench-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bench-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 110px;
+  gap: 14px;
+  align-items: center;
+  padding: 6px 0;
+}
+.bench-row .label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.bench-row .bar-bg {
+  height: 14px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+.bench-row .bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #ea580c);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.bench-row .val {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+}
+
+/* ============== ARCHIVE GROUP ============== */
+.archive-group {
+  margin-bottom: 28px;
+}
+
+.archive-month {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.archive-day {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 14px 0 8px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.archive-day-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.archive-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.archive-item:hover { border-color: var(--border-light); }
+
+.archive-item-time {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  min-width: 50px;
+}
+
+.archive-item-type {
+  padding: 1px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  font-weight: 600;
+  min-width: 56px;
+  text-align: center;
+}
+
+.archive-item-title {
+  color: var(--text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============== UTILITY ============== */
+.hidden { display: none !important; }
+.flex-row { display: flex; align-items: center; gap: 8px; }
+.spacer { flex: 1; }
+.text-muted { color: var(--text-muted); }
+.text-dim { color: var(--text-dim); font-size: 12px; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* ============== MOBILE ============== */
+@media (max-width: 768px) {
+  .header { padding: 14px 18px; }
+  .tabs { padding: 0 18px; }
+  .main { padding: 18px 18px 50px; }
+  .header-row { gap: 12px; }
+  .brand-text h1 { font-size: 16px; }
+  .search-input { width: 100%; }
+  .search-input:focus { width: 100%; }
+  .live-time { display: none; }
+  .form-row-2 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============== HEADER ============== -->
+  <header class="header">
+    <div class="header-row">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M3 3v18h18"/>
+            <path d="M7 14l4-4 4 4 5-5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>AI 投资研究看板</h1>
+          <div class="sub">数据驱动 · AI 增强 · 持续归档</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="live-time" id="liveTime"></div>
+        <div class="actions">
+          <button class="btn" onclick="syncRemote()" title="从配置的远程URL同步数据">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+            同步
+          </button>
+          <button class="btn" onclick="importJSON()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            导入
+          </button>
+          <button class="btn" onclick="exportJSON()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            导出
+          </button>
+          <button class="btn" onclick="openSettings()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            设置
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============== TABS ============== -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="morning" onclick="switchTab('morning')">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      早报
+      <span class="tab-badge" id="badge-morning">0</span>
+    </button>
+    <button class="tab" data-tab="evening" onclick="switchTab('evening')">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      晚报
+      <span class="tab-badge" id="badge-evening">0</span>
+    </button>
+    <button class="tab" data-tab="companies" onclick="switchTab('companies')">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+      投研公司
+      <span class="tab-badge" id="badge-companies">0</span>
+    </button>
+    <button class="tab" data-tab="events" onclick="switchTab('events')">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      事件分析
+      <span class="tab-badge" id="badge-events">0</span>
+    </button>
+    <button class="tab" data-tab="archive" onclick="switchTab('archive')">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      历史归档
+      <span class="tab-badge" id="badge-archive">0</span>
+    </button>
+    <button class="tab" data-tab="period" onclick="switchTab('period')">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+      周期观察
+      <span class="tab-badge" id="badge-period">∞</span>
+    </button>
+  </nav>
+
+  <!-- ============== MAIN ============== -->
+  <main class="main">
+    <!-- 早报 -->
+    <div class="tab-content active" id="tab-morning">
+      <div class="action-bar">
+        <div>
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            热点早报
+          </div>
+          <div class="section-subtitle">7:00 自动生成 · 基于最近一个完整交易日的市场热点</div>
+        </div>
+        <div class="action-bar-right">
+          <button class="btn" onclick="showPrompt('morning')">查看提示词</button>
+          <button class="btn" onclick="openAddReport('morning')">+ 新建早报</button>
+        </div>
+      </div>
+      <div id="morning-latest"></div>
+      <div id="morning-history"></div>
+    </div>
+
+    <!-- 晚报 -->
+    <div class="tab-content" id="tab-evening">
+      <div class="action-bar">
+        <div>
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            行情晚报
+          </div>
+          <div class="section-subtitle">19:00 自动生成 · A 股 / 港股当日复盘 + 反事后归因</div>
+        </div>
+        <div class="action-bar-right">
+          <button class="btn" onclick="showPrompt('evening')">查看提示词</button>
+          <button class="btn" onclick="openAddReport('evening')">+ 新建晚报</button>
+        </div>
+      </div>
+      <div id="evening-latest"></div>
+      <div id="evening-history"></div>
+    </div>
+
+    <!-- 投研公司 -->
+    <div class="tab-content" id="tab-companies">
+      <div class="action-bar">
+        <div>
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+            投研公司库
+          </div>
+          <div class="section-subtitle">所有研究过的公司与个股 · 完整研究历史</div>
+        </div>
+        <div class="action-bar-right">
+          <input type="text" class="search-input" id="companySearch" placeholder="搜索代码 / 名称 / 行业..." oninput="renderCompanies()">
+          <button class="btn btn-primary" onclick="openAddCompany()">+ 添加公司</button>
+        </div>
+      </div>
+      <div class="filter-row" id="companyFilter"></div>
+      <div id="companies-grid"></div>
+    </div>
+
+    <!-- 事件分析 -->
+    <div class="tab-content" id="tab-events">
+      <div class="action-bar">
+        <div>
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            事件分析
+          </div>
+          <div class="section-subtitle">并购重组 / 要约收购 / 再融资 / 回购 / 解禁 / 监管诉讼 / 指数调仓</div>
+        </div>
+        <div class="action-bar-right">
+          <button class="btn btn-primary" onclick="openAddEvent()">+ 录入事件</button>
+        </div>
+      </div>
+      <div class="filter-row" id="eventFilter"></div>
+      <div id="events-list"></div>
+    </div>
+
+    <!-- 历史归档 -->
+    <div class="tab-content" id="tab-archive">
+      <div class="action-bar">
+        <div>
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            历史归档
+          </div>
+          <div class="section-subtitle">所有数据按月归档 · 早报 / 晚报 / 研究 / 事件完整记录</div>
+        </div>
+        <div class="action-bar-right">
+          <button class="btn" onclick="if(confirm('确定清空所有数据吗？此操作不可恢复！')){state={morning:[],evening:[],companies:[],events:[],archive:[],config:state.config};save();renderAll();toast('已清空','success');}">清空所有</button>
+        </div>
+      </div>
+      <div id="archive-list"></div>
+    </div>
+
+    <!-- 周期观察 -->
+    <div class="tab-content" id="tab-period">
+      <div class="action-bar">
+        <div>
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            周期观察
+          </div>
+          <div class="section-subtitle">按周 / 月 / 季度 / 自定义时间段观察市场情绪与主线变化</div>
+        </div>
+        <div class="action-bar-right">
+          <select id="periodRange" class="search-input" style="width:auto; padding-left:12px; background-image:none;" onchange="renderPeriod()">
+            <option value="7">近 7 天</option>
+            <option value="30" selected>近 30 天</option>
+            <option value="90">近 90 天</option>
+            <option value="all">全部</option>
+            <option value="custom">自定义...</option>
+          </select>
+        </div>
+      </div>
+      <div id="period-custom" style="display:none; margin-bottom:18px;">
+        <div class="flex-row" style="gap:8px;">
+          <input type="date" id="periodFrom" class="search-input" style="width:auto; padding-left:12px; background-image:none;">
+          <span class="text-muted">到</span>
+          <input type="date" id="periodTo" class="search-input" style="width:auto; padding-left:12px; background-image:none;">
+          <button class="btn btn-primary" onclick="renderPeriod()">应用</button>
+        </div>
+      </div>
+      <div id="period-content"></div>
+    </div>
+
+    <div class="status-bar">
+      <div class="left">
+        <span><span class="dot"></span>本地存储已启用</span>
+        <span>数据条数: <span id="stat-total">0</span></span>
+      </div>
+      <div class="right">
+        <span id="stat-storage">localStorage / ai-investment-dashboard-v1</span>
+        <span id="stat-lastSync">未同步</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal Container -->
+<div id="modalContainer"></div>
+
+<!-- Toast Container -->
+<div id="toastContainer"></div>
+
+<input type="file" id="fileInput" style="display:none" accept=".json" onchange="handleFileImport(event)">
+
+<script>
+// ============== 数据模型 ==============
+const STORAGE_KEY = 'ai-investment-dashboard-v1';
+
+const EVENT_TYPES = {
+  MA: { name: '并购重组', color: 'event-MA' },
+  Tender: { name: '要约收购', color: 'event-Tender' },
+  Refinancing: { name: '再融资', color: 'event-Refinancing' },
+  Buyback: { name: '回购', color: 'event-Buyback' },
+  Unlock: { name: '解禁', color: 'event-Unlock' },
+  Litigation: { name: '监管诉讼', color: 'event-Litigation' },
+  Index: { name: '指数调仓', color: 'event-Index' }
+};
+
+let state = {
+  morning: [],
+  evening: [],
+  companies: [],
+  events: [],
+  archive: [],
+  config: { remoteDataUrl: '', autoSync: false }
+};
+
+let currentTab = 'morning';
+let currentEventFilter = 'all';
+let currentCompanyFilter = 'all';
+
+// ============== 提示词（早报/晚报）==============
+const PROMPTS = {
+  morning: `# 角色
+
+你是一名 "专业、客观、表达通俗 "的中文金融市场热点分析助手。
+
+用大白话讲清复杂逻辑 ，新手看得懂 ，有经验的投资者能快速抓到增量信息。
+
+# 任务
+
+基于 【最近1个完整交易日】 的公开信息 ，生成《AI 投资早报（9点半）》。
+
+- 交易日基准：A股最近一个交易日为准；港股同步；美股取A 股交易日当晚到隔夜凌晨收盘后。每处数据后标注其所属日期。
+- 覆盖：A股、港股、美股。
+- 来源范围：交易所公告、财报、政策文件、权威财经媒体、券商研报摘要、资金数据、社交平台热度。
+
+# 核心目标
+
+让读者搞懂五件事：
+
+1. 昨天市场发生了什么（带数字）
+2. 某个方向为什么突然被关注
+3. 背后对应的产业链、行业、代表公司
+4. 这轮关注属于哪一类 ，以及什么信号会证明它是错的
+5. 今天要盯什么
+
+# 硬性原则
+
+1. 不做交易建议 ，不使用 "买入、卖出、加仓、清仓、推荐 "等表达。
+2. 提及公司仅为举例说明产业链 ，不构成推荐 ，需在文中明确写出。
+3. 每个结论必须给依据 ，不能只给判断。
+4. 信息分三类标注：【事实】【解读】【待核实】。
+   - 【事实】 必须可追溯到具体来源 ，并写出来源名称与时间。
+   - 【解读】 必须署主：写清是谁的观点（某券商  / 某官媒  / 某平台热议），禁止使用无主语的 "市场认为 "。
+   - 【待核实】 用于未经证实的传闻。宁可标注也不编造。
+5. 来源优先级（高 →低） ：交易所与公司公告、财报、投资者关系记录  > 政策文件、官方新闻  > 权威财经媒体  > 券商研报摘要  > 社交平台讨论与传闻。
+6. 社交热度、传闻、短线情绪只能作为 "情绪信号 "，不得当作事实。
+7. 关键数据取不到时 ，直接写 "数据不可得 "及原因 ，禁止用旧数据冒充。
+8. **数字优先**：凡能用数字表达的 ，一律用数字。禁止 "大幅 ""明显 ""活跃 ""偏暖 "等无量纲形容词单独出现 ，必须紧跟具体数值。
+
+# 输出格式
+
+## 一、盘面数据卡（表格 ，不写点评）
+
+| 市场   | 指数   | 涨跌幅  | 成交额  | 备注  |
+
+A股：上证  / 深成  / 创业板  / 科创50 + 两市成交额及较前日增减  + 涨停家数与炸板率  + 北向资金（如可得）
+
+港股：恒生  / 恒生科技  + 南向资金
+
+美股（ 隔夜凌晨） ：道指  / 标普  / 纳指  + 10年期美债收益率  / 美元指数  / 黄金  / 原油
+
+行业涨幅前5、跌幅前5（ 申万一级 ，带涨跌幅）
+
+取不到的项写 "数据不可得（原因） "，不留空。
+
+## 二、一句话主线（不超过40字）
+
+用一句话说清昨天市场的核心矛盾。
+
+## 三、今日热点方向（3–5个 ，按 "信息重要性×市场关注度 "排序）
+
+每个方向按以下结构 ，单个方向不超过300字：
+
+- **方向名称**
+- **触发事件**【事实】 ：具体事件  + 来源  + 发生时间
+- **为何被关注**【解读】 ：署主 ，写清谁在这么说
+- **产业链与代表公司**：上游 → 中游 → 下游分层列举 ，说明各环节角色。举例说明用 ，非推荐。
+- **归类**：产业逻辑  / 政策催化  / 业绩预期  / 资金情绪（说明理由）
+- **持续性与证伪信号**：需要哪些后续信号来确认这条逻辑成立？ 出现什么情况说明它站不住？（这一栏必填）
+- **反方观点**：是否存在与主流叙事相反的看法或数据？没有则写 "未检索到明确反方观点 "。
+
+## 四、增量变化（对比前一交易日）
+
+- 新出现的方向（ 昨天没有、今天出现）
+- 降温的方向（此前热、现在退潮 ，说明退潮迹象）
+- 延续中的方向（一句话带过 ，不重复展开）
+
+## 五、隔夜美股  →  A/H 映射
+
+不复述美股涨跌 ，只写：隔夜哪条产业链/主题出现明显您动 ，对应  A 股或港股哪个板块可能被联动，以及这种联动在历史上是否可靠。无明确映射则写 "无显著传导线索 "。
+
+## 六、今日需关注（前瞻）
+
+- 宏观数据与政策事件（含公布时间）
+- 重要财报
+- 解禁、新股、限售、指数调仓等日程项
+- 待验证的悬而未决事项（ 昨天的传闻今天是否会有官方回应）
+
+无则写 "今日无重大日程 "。
+
+## 七、需警惕的传闻与情绪信号
+
+列出昨日流传但未证实的说法 ，标注 【待核实】 ，并写清传播源头。
+
+## 八、名词补充（可选）
+
+仅当出现专业术语时 ，一两句话解释。无则省略。
+
+# 质量自检（生成后执行 ，不输出过程）
+
+1. 是否每个热点都写了 "证伪信号 "？
+2. 是否存在无来源的 【解读】？
+3. 是否存在无数字支撑的形容词？
+4. 全文是否超过 1500 字？超了删掉最弱的一个热点方向 ，不要压缩数据卡。`,
+
+  evening: `# 角色
+
+你是一名 "专业、客观、反事后归因 "的中文  A 股/港股当日复盘助手。
+
+你的职责是归因与记账 ，不是重述新闻。
+
+# 生成时间与数据边界
+
+- 本简报生成于交易日  15:30 之后。
+- 若在  17:30 前生成 ，龙虎榜、席位、融资余额、 ETF 份额等盘后数据尚未发布，必须写 "盘后数据未发布 "，禁止用盘中估算值代替。
+- 港股以当日   16:00 收盘为准。
+- 美股：只写 "昨夜已收盘结果 "与 "今夜待观察事项 "，不得与  A/H 并列为当日行情。
+
+# 最高原则：反事后归因
+
+1. 每一段解释性文字必须先回答：**是否存在时间上先于价格变化的公开事件？**
+   - 有  →   写出事件、来源、发生时刻 ，标 【已归因】
+   - 无  →  直接写 【无法归因】 ，禁止用 "受     影响 ""因     担忧 "这类没有事实支撑的因果句
+2. 允许并鼓励写 "本次波动无明确公开触发因素 "。这是有效信息 ，不是失败。
+3. 禁止用当日涨跌反推逻辑。（不能因为跌了就说 "利空兑现 "，也不能因为涨了就说 "预期改善"）
+4. 区分 【相关】 与 【因果】 ：多个事件同时发生只能写 "同期出现 "，不得写 "导致 "。
+
+# 其他硬性原则
+
+1. 不做交易建议 ，不使用 "买入、卖出、加仓、清仓、推荐 "等表达。
+2. 提及公司仅为举例说明产业链 ，不构成推荐 ，需在文中写明。
+3. 信息分 【事实】【解读】【待核实】 三类标注；【解读】 必须署主 ，禁止无主语的 "市场认为 "。
+4. 数字优先：禁止 "大幅 ""明显 ""活跃 "等形容词单独出现 ，必须紧跟数值。
+5. 数据取不到写 "数据不可得（原因） "，禁止用旧数据或估算值冒充。
+
+# 输出格式
+
+## 一、收盘数据卡
+
+| 指数   | 收盘   | 涨跌幅   | 成交额   | 较前日增减  |
+
+上证  / 深成  / 创业板  / 科创50  / 北证50  / 恒生   / 恒生科技
+
+两市总成交额及环比、涨跌家数比、涨停家数、跌停家数、炸板率、连板最高板
+
+北向与南向资金（如可得）
+
+申万一级行业涨幅前5、跌幅前5
+
+## 二、盘中时序（复盘核心 ，不可省略）
+
+按时间段还原当天的走势结构：
+
+- 09:30–10:30 开盘与早盘
+- 10:30–11:30 上午后段
+- 13:00–14:00 午后
+- 14:00–15:00 尾盘（尤其注意尾盘异动）
+
+每段写：指数走势方向  + 同期发生的公开事件（有则列 ，无则写 "无明确公开事件"）
+
+明确标注哪几段属于 【已归因】、哪几段属于 【无法归因】。
+
+特别标注：全天最大波动出现在哪个时点、是否有明确触发。
+
+## 三、资金与情绪结构
+
+- 主力资金净流入/流出行业前3与后3（如可得）
+- 涨停板梯队结构：几进几、最高板、连板股数量、晋级率
+- 情绪周期定位：冰点  / 修复  / 发酵  / 主升  / 分歧  / 退潮（六选一 ，必须给出判断依据）
+- 与前一交易日相比 ，情绪位置是前进、停滞还是后退
+- 龙虎榜与席位（ 17:30 后可得 ，否则标注未发布）
+
+## 四、主线与分支
+
+- **今日主线**：最多  2 条。判定标准是 "成交额占比  + 持续时间  + 涨停家数 "，不是 "涨幅最大 "。
+- **分支与跟风**：主线外围有哪些方向被带动
+- **补跌/杀跌方向**：哪些前期强势方向今日走弱 ，是获利了结还是逻辑破坏
+- 每条写清：【已归因】 或 【无法归因】
+
+## 五、判断清算（Accountability Ledger）
+
+对照此前简报中提出的观点逐条清算：
+
+| 此前判断   | 提出日期   | 今日验证结果   | 结论   |
+
+结论只能是： 已验证  / 已证伪  / 仍待观察  / 已失效（前提变化）
+
+若某条判断被证伪 ，必须写出**具体错在哪一步推理**，不得含糊带过。
+
+无历史判断可清算时 ，写 "无待清算项 "。
+
+## 六、跟踪档案更新
+
+- 情绪周期位置（今日  vs 昨日）
+- 在跟踪的主线列表：新增哪条、移除哪条、移除原因
+- 尚未兑现的悬置事项（此前的传闻、待发布数据、待落地政策）
+
+## 七、明日观察点
+
+- 明日宏观数据与政策事件（含公布时间）
+- 明日重要财报
+- 明日日程项：解禁、新股、指数调仓等
+- **明确的观察信号**：写成 "如果  X 出现 ，说明  Y；如果  Z 出现 ，说明反面 "的可判定形怯，不得写成 "关注  XX 板块表现 "这类无法判定的空话。
+- 今夜美股需关注的事项（对  A/H 有传导可能的部分）
+
+## 八、名词补充（可选）
+
+仅当出现专业术语时 ，一两句话解释。无则省略。
+
+# 质量自检（生成后执行 ，不输出过程）
+
+1. 是否存在没有事实支撑的因果句？（ "因为 ""受     影响 ""担忧     "）
+2. 【无法归因】 是否至少出现过一次？若全篇都能归因 ，重新审查是否在编故事。
+3. 【解读】 是否都署了主？
+4. "明日观察点 "是否都是可判定的？ 出现 "关注 ""留意 "等无法判定的表述必须重写。
+5. 是否复述了新闻却没有归因？纯新闻复述段落一律删除。
+6. 全文是否超过  1800 字？超了先砍 "分支与跟风 "，不要砍时序与清算。`
+};
+
+// ============== 工具函数 ==============
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function nowStr() {
+  const d = new Date();
+  return `${todayStr()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function stripHtml(s) {
+  if (!s) return '';
+  return s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function md(text) {
+  if (!text) return '';
+  // 极简 markdown 渲染（**粗体**、*斜体*、`code`、# 标题、- 列表、|表格|、换行）
+  let html = escapeHtml(text);
+  // 标题
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // 粗体/斜体/code
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // 列表
+  html = html.replace(/(?:^- .+(?:\n|$))+?/gm, m => {
+    const items = m.trim().split('\n').map(l => l.replace(/^- /, '')).map(l => `<li>${l}</li>`).join('');
+    return `<ul>${items}</ul>`;
+  });
+  // 表格
+  html = html.replace(/((?:\|.+\|(?:\n|$))+)/g, m => {
+    const lines = m.trim().split('\n').filter(l => l.trim());
+    if (lines.length < 2) return m;
+    const header = lines[0].split('|').slice(1,-1).map(s=>s.trim());
+    const aligns = lines[1].split('|').slice(1,-1).map(s=>s.trim());
+    if (!aligns.every(a => /^:?-+:?$/.test(a))) return m;
+    const body = lines.slice(2).map(l => l.split('|').slice(1,-1).map(s=>s.trim()));
+    let t = '<table><thead><tr>';
+    header.forEach(h => t += `<th>${h}</th>`);
+    t += '</tr></thead><tbody>';
+    body.forEach(row => {
+      t += '<tr>';
+      row.forEach(c => t += `<td>${c}</td>`);
+      t += '</tr>';
+    });
+    t += '</tbody></table>';
+    return t;
+  });
+  // 段落
+  html = html.split(/\n\n+/).map(p => {
+    if (/^<(h\d|ul|ol|table|blockquote|pre)/.test(p.trim())) return p;
+    return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+  return html;
+}
+
+// ============== 持久化 ==============
+function load() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (data) {
+      const parsed = JSON.parse(data);
+      state = {
+        morning: parsed.morning || [],
+        evening: parsed.evening || [],
+        companies: parsed.companies || [],
+        events: parsed.events || [],
+        archive: parsed.archive || [],
+        config: { ...state.config, ...(parsed.config || {}) }
+      };
+    }
+  } catch (e) { console.error('Load failed', e); }
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) { console.error('Save failed', e); }
+  updateBadges();
+}
+
+function updateBadges() {
+  document.getElementById('badge-morning').textContent = state.morning.length;
+  document.getElementById('badge-evening').textContent = state.evening.length;
+  document.getElementById('badge-companies').textContent = state.companies.length;
+  document.getElementById('badge-events').textContent = state.events.length;
+  document.getElementById('badge-archive').textContent = state.archive.length;
+  const total = state.morning.length + state.evening.length + state.companies.length + state.events.length;
+  document.getElementById('stat-total').textContent = total;
+}
+
+// ============== 渲染 ==============
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === `tab-${name}`));
+  renderCurrent();
+}
+
+function renderCurrent() {
+  if (currentTab === 'morning') renderReports('morning');
+  else if (currentTab === 'evening') renderReports('evening');
+  else if (currentTab === 'companies') renderCompanies();
+  else if (currentTab === 'events') renderEvents();
+  else if (currentTab === 'archive') renderArchive();
+  else if (currentTab === 'period') renderPeriod();
+}
+
+function renderReports(type) {
+  const items = state[type].slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  const latestEl = document.getElementById(`${type}-latest`);
+  const historyEl = document.getElementById(`${type}-history`);
+  
+  if (items.length === 0) {
+    latestEl.innerHTML = `
+      <div class="card">
+        <div class="empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <div class="empty-title">暂无${type === 'morning' ? '早报' : '晚报'}</div>
+          <div class="empty-text">点击右上角"+ 新建${type === 'morning' ? '早报' : '晚报'}"手动添加，或等待每天${type === 'morning' ? '7' : '19'}点定时任务自动生成</div>
+        </div>
+      </div>`;
+    historyEl.innerHTML = '';
+    return;
+  }
+  
+  const latest = items[0];
+  latestEl.innerHTML = renderReportCard(latest, type, true);
+  
+  if (items.length > 1) {
+    historyEl.innerHTML = `
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:14px; margin-bottom:10px;">
+        <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        历史记录
+      </div>
+      <div class="history-list">
+        ${items.slice(1).map(r => `
+          <div class="history-item" onclick="viewReport('${type}','${r.id}')">
+            <div class="history-info">
+              <span class="history-date">${r.date}</span>
+              <span class="history-summary">${escapeHtml(stripHtml(r.content).slice(0, 80))}...</span>
+            </div>
+            <span class="text-dim">${r.source || ''}</span>
+          </div>
+        `).join('')}
+      </div>`;
+  } else {
+    historyEl.innerHTML = '';
+  }
+}
+
+function renderReportCard(r, type, isLatest) {
+  const title = type === 'morning' ? '🌅 热点早报' : '🌆 行情晚报';
+  return `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <span class="card-title">${title}</span>
+          <span class="tag tag-info">${r.date}</span>
+          ${r.source ? `<span class="tag">${escapeHtml(r.source)}</span>` : ''}
+        </div>
+        <div class="card-actions">
+          <button class="btn" onclick="viewReport('${type}','${r.id}')">查看</button>
+          <button class="btn" onclick="copyReport('${type}','${r.id}')">复制</button>
+          <button class="btn" onclick="deleteReport('${type}','${r.id}')">删除</button>
+        </div>
+      </div>
+      <div class="card-body" style="max-height: ${isLatest ? 'none' : '200px'}; overflow:hidden;">
+        ${md(r.content || '（无内容）')}
+      </div>
+    </div>`;
+}
+
+function renderCompanies() {
+  const grid = document.getElementById('companies-grid');
+  const filterEl = document.getElementById('companyFilter');
+  const search = (document.getElementById('companySearch')?.value || '').toLowerCase();
+  
+  // 行业筛选 chips
+  const sectors = ['all', ...new Set(state.companies.map(c => c.sector).filter(Boolean))];
+  filterEl.innerHTML = sectors.map(s => {
+    const count = s === 'all' ? state.companies.length : state.companies.filter(c => c.sector === s).length;
+    const label = s === 'all' ? '全部' : s;
+    return `<button class="chip ${currentCompanyFilter === s ? 'active' : ''}" onclick="setCompanyFilter('${s}')">${label}<span class="chip-count">${count}</span></button>`;
+  }).join('');
+  
+  let list = state.companies.slice();
+  if (currentCompanyFilter !== 'all') list = list.filter(c => c.sector === currentCompanyFilter);
+  if (search) list = list.filter(c => 
+    (c.code || '').toLowerCase().includes(search) ||
+    (c.name || '').toLowerCase().includes(search) ||
+    (c.sector || '').toLowerCase().includes(search) ||
+    (c.tags || []).some(t => t.toLowerCase().includes(search))
+  );
+  
+  if (list.length === 0) {
+    grid.innerHTML = `
+      <div class="card">
+        <div class="empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>
+          </svg>
+          <div class="empty-title">${state.companies.length === 0 ? '投研公司库为空' : '没有匹配的公司'}</div>
+          <div class="empty-text">${state.companies.length === 0 ? '点击"+ 添加公司"录入第一只研究过的个股' : '尝试调整搜索词或行业筛选'}</div>
+        </div>
+      </div>`;
+    return;
+  }
+  
+  grid.innerHTML = `<div class="company-grid">${list.map(c => `
+    <div class="company-card" onclick="viewCompany('${c.id}')">
+      <div class="company-code">${escapeHtml(c.code || '')}${c.market ? ' · ' + c.market : ''}</div>
+      <div class="company-name">${escapeHtml(c.name || '未命名')}</div>
+      <div class="company-meta">
+        ${c.sector ? `<span class="tag tag-info">${escapeHtml(c.sector)}</span>` : ''}
+        ${(c.tags || []).slice(0,2).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
+      </div>
+      <div class="company-snippet">${escapeHtml(c.snippet || c.notes || '暂无简介')}</div>
+      <div class="company-footer">
+        <span>研究 ${(c.research_history || []).length} 次</span>
+        <span>${c.last_research || c.added_at?.slice(0,10) || '—'}</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderEvents() {
+  const list = document.getElementById('events-list');
+  const filterEl = document.getElementById('eventFilter');
+  
+  // 类型筛选 chips
+  const types = ['all', ...Object.keys(EVENT_TYPES)];
+  filterEl.innerHTML = types.map(t => {
+    const count = t === 'all' ? state.events.length : state.events.filter(e => e.type === t).length;
+    const label = t === 'all' ? '全部' : EVENT_TYPES[t].name;
+    return `<button class="chip ${currentEventFilter === t ? 'active' : ''}" onclick="setEventFilter('${t}')">${label}<span class="chip-count">${count}</span></button>`;
+  }).join('');
+  
+  let items = state.events.slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  if (currentEventFilter !== 'all') items = items.filter(e => e.type === currentEventFilter);
+  
+  if (items.length === 0) {
+    list.innerHTML = `
+      <div class="card">
+        <div class="empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          <div class="empty-title">暂无事件记录</div>
+          <div class="empty-text">点击"+ 录入事件"或由 Mavis 在对话中研究个股时自动写入</div>
+        </div>
+      </div>`;
+    return;
+  }
+  
+  list.innerHTML = `<div class="timeline">${items.map(e => {
+    const et = EVENT_TYPES[e.type] || { name: e.type, color: '' };
+    return `
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-date">
+          <span class="tag ${et.color}">${et.name}</span>
+          <span>${e.date || '—'}</span>
+          ${e.company_code ? `<span class="mono">${escapeHtml(e.company_code)} ${escapeHtml(e.company_name || '')}</span>` : ''}
+        </div>
+        <div class="card" style="margin: 6px 0 0;">
+          <div class="card-header" style="margin-bottom:8px; padding-bottom:8px;">
+            <div class="card-title">${escapeHtml(e.title || '未命名事件')}</div>
+            <div class="card-actions">
+              <button class="btn" onclick="viewEvent('${e.id}')">查看</button>
+              <button class="btn" onclick="deleteEvent('${e.id}')">删除</button>
+            </div>
+          </div>
+          <div class="card-body">${md(e.description || '')}</div>
+          ${e.source ? `<div class="text-dim" style="margin-top:8px;">来源：${escapeHtml(e.source)}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function renderArchive() {
+  const container = document.getElementById('archive-list');
+  // 汇总所有数据为归档
+  const all = [];
+  state.morning.forEach(r => all.push({ type: 'morning', date: r.date, title: `早报 · ${r.date}`, summary: stripHtml(r.content).slice(0,60) }));
+  state.evening.forEach(r => all.push({ type: 'evening', date: r.date, title: `晚报 · ${r.date}`, summary: stripHtml(r.content).slice(0,60) }));
+  state.companies.forEach(c => {
+    (c.research_history || []).forEach(rh => all.push({ type: 'research', date: rh.date || c.added_at?.slice(0,10), title: `研究 · ${c.name}`, summary: stripHtml(rh.content || rh.summary).slice(0,60), code: c.code }));
+  });
+  state.events.forEach(e => all.push({ type: 'event', date: e.date, title: `${EVENT_TYPES[e.type]?.name || e.type} · ${e.company_name || ''}`, summary: e.title }));
+  
+  if (all.length === 0) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><line x1="10" y1="12" x2="14" y2="12"/>
+          </svg>
+          <div class="empty-title">归档为空</div>
+          <div class="empty-text">所有早报、晚报、个股研究、事件都会自动归入这里</div>
+        </div>
+      </div>`;
+    return;
+  }
+  
+  // 按月分组
+  all.sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  const groups = {};
+  all.forEach(item => {
+    const month = (item.date || '未知').slice(0, 7);
+    if (!groups[month]) groups[month] = {};
+    const day = item.date || '未知日期';
+    if (!groups[month][day]) groups[month][day] = [];
+    groups[month][day].push(item);
+  });
+  
+  container.innerHTML = Object.keys(groups).sort((a,b) => b.localeCompare(a)).map(month => `
+    <div class="archive-group">
+      <div class="archive-month">${month}</div>
+      ${Object.keys(groups[month]).sort((a,b) => b.localeCompare(a)).map(day => `
+        <div class="archive-day">${day}</div>
+        <div class="archive-day-items">
+          ${groups[month][day].map(item => {
+            const typeClass = item.type === 'morning' ? 'tag-info' : item.type === 'evening' ? 'tag-warning' : item.type === 'event' ? 'tag-purple' : 'tag-cyan';
+            const typeLabel = { morning: '早报', evening: '晚报', research: '研究', event: '事件' }[item.type];
+            return `
+              <div class="archive-item">
+                <span class="archive-item-time mono">${day.slice(5)}</span>
+                <span class="archive-item-type tag ${typeClass}">${typeLabel}</span>
+                <span class="archive-item-title">${escapeHtml(item.title)}</span>
+                <span class="text-dim">${escapeHtml(item.summary)}...</span>
+              </div>`;
+          }).join('')}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function renderAll() { renderCurrent(); }
+
+// ============== 周期观察 ==============
+function renderPeriod() {
+  const range = document.getElementById('periodRange').value;
+  const customEl = document.getElementById('period-custom');
+  customEl.style.display = range === 'custom' ? 'block' : 'none';
+  
+  let fromDate = null, toDate = null;
+  const today = new Date();
+  if (range === '7') { fromDate = new Date(today.getTime() - 7*86400000); toDate = today; }
+  else if (range === '30') { fromDate = new Date(today.getTime() - 30*86400000); toDate = today; }
+  else if (range === '90') { fromDate = new Date(today.getTime() - 90*86400000); toDate = today; }
+  else if (range === 'custom') {
+    fromDate = new Date(document.getElementById('periodFrom').value || '2020-01-01');
+    toDate = new Date(document.getElementById('periodTo').value || today.toISOString().slice(0,10));
+  }
+  // 'all' 不限制
+  
+  const inRange = (dateStr) => {
+    if (range === 'all') return true;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    return d >= fromDate && d <= toDate;
+  };
+  
+  const morning = state.morning.filter(r => inRange(r.date));
+  const evening = state.evening.filter(r => inRange(r.date));
+  const events = state.events.filter(e => inRange(e.date));
+  
+  const container = document.getElementById('period-content');
+  
+  if (morning.length === 0 && evening.length === 0 && events.length === 0) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 3v18h18"/><path d="M3 9h18"/><path d="M9 21V9"/>
+          </svg>
+          <div class="empty-title">所选时间段无数据</div>
+          <div class="empty-text">尝试扩大范围（选择"全部"或近 30/90 天）</div>
+        </div>
+      </div>`;
+    return;
+  }
+  
+  // 情绪周期分布（从晚报提取）
+  const moodStats = {};
+  const moodRegex = /情绪周期[：:]\s*\*?\*?(\S+?)\*?\*?/g;
+  evening.forEach(r => {
+    let m;
+    const re = new RegExp(moodRegex.source, 'g');
+    while ((m = re.exec(r.content)) !== null) {
+      const mood = m[1].replace(/[*\s]/g, '');
+      if (['冰点','修复','发酵','主升','分歧','退潮'].includes(mood)) {
+        moodStats[mood] = (moodStats[mood] || 0) + 1;
+      }
+    }
+  });
+  
+  // 主线统计（从晚报"主线"部分提取）
+  const mainLines = {};
+  evening.forEach(r => {
+    const mainSection = r.content.match(/主线[：:][\s\S]{0,500}/);
+    if (mainSection) {
+      const lines = mainSection[0].split(/[、，。；\n]/).filter(l => l.length > 4 && l.length < 50);
+      lines.forEach(l => {
+        const key = l.replace(/[【】*\d]/g, '').trim().slice(0, 30);
+        if (key.length > 4) mainLines[key] = (mainLines[key] || 0) + 1;
+      });
+    }
+  });
+  const topMains = Object.entries(mainLines).sort((a,b) => b[1] - a[1]).slice(0, 8);
+  
+  // 事件类型分布
+  const eventStats = {};
+  events.forEach(e => { eventStats[e.type] = (eventStats[e.type] || 0) + 1; });
+  
+  const moodEmojis = { '冰点':'🥶', '修复':'🩹', '发酵':'🌱', '主升':'🚀', '分歧':'⚖️', '退潮':'📉' };
+  const moodTotal = Object.values(moodStats).reduce((a,b) => a+b, 0) || 1;
+  
+  container.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="font-size:15px; margin-bottom:14px;">
+        <svg class="icon" style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        周期概览（${morning.length} 早报 / ${evening.length} 晚报 / ${events.length} 事件）
+      </div>
+      
+      <div style="margin-bottom:18px;">
+        <div class="text-muted" style="font-size:12px; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">情绪周期分布</div>
+        <div class="bench-row-list">
+          ${Object.entries(moodStats).sort((a,b) => b[1]-a[1]).map(([m, c]) => {
+            const pct = (c / moodTotal * 100).toFixed(0);
+            return `<div class="bench-row">
+              <span class="label">${moodEmojis[m] || ''} ${m}</span>
+              <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
+              <span class="val">${c} 次 · ${pct}%</span>
+            </div>`;
+          }).join('') || '<div class="text-dim">暂无情绪周期数据</div>'}
+        </div>
+      </div>
+      
+      ${topMains.length ? `<div style="margin-bottom:18px;">
+        <div class="text-muted" style="font-size:12px; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">主线高频词 Top ${topMains.length}</div>
+        <div class="flex-row" style="flex-wrap:wrap; gap:6px;">
+          ${topMains.map(([k, c]) => `<span class="tag tag-info">${escapeHtml(k)} <span class="mono" style="opacity:0.6;">×${c}</span></span>`).join('')}
+        </div>
+      </div>` : ''}
+      
+      ${Object.keys(eventStats).length ? `<div>
+        <div class="text-muted" style="font-size:12px; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">事件类型分布</div>
+        <div class="flex-row" style="flex-wrap:wrap; gap:6px;">
+          ${Object.entries(eventStats).sort((a,b) => b[1]-a[1]).map(([k, c]) => `<span class="tag ${EVENT_TYPES[k]?.color || 'tag-info'}">${EVENT_TYPES[k]?.name || k} <span class="mono" style="opacity:0.6;">×${c}</span></span>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>
+    
+    <div class="card">
+      <div class="section-title" style="font-size:15px; margin-bottom:14px;">
+        <svg class="icon" style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        时序列表（按日期倒序）
+      </div>
+      <div class="history-list">
+        ${[...morning.map(r => ({...r, type:'morning'})), ...evening.map(r => ({...r, type:'evening'})), ...events.map(e => ({...e, type:'event'})),]
+          .sort((a,b) => (b.date || '').localeCompare(a.date || ''))
+          .slice(0, 50)
+          .map(item => {
+            const t = item.type === 'morning' ? '早报' : item.type === 'evening' ? '晚报' : (EVENT_TYPES[item.type]?.name || '事件');
+            const cls = item.type === 'morning' ? 'tag-info' : item.type === 'evening' ? 'tag-warning' : (EVENT_TYPES[item.type]?.color || 'tag-info');
+            const title = item.type === 'event' ? (item.title || '') : `(${item.type === 'morning' ? '早报' : '晚报'})`;
+            return `<div class="history-item" onclick="${item.type === 'event' ? `viewEvent('${item.id}')` : `viewReport('${item.type}','${item.id}')`}">
+              <div class="history-info">
+                <span class="history-date">${item.date || '—'}</span>
+                <span class="tag ${cls}">${t}</span>
+                <span class="history-summary">${escapeHtml(title)}</span>
+              </div>
+            </div>`;
+          }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ============== 操作 ==============
+function setEventFilter(t) { currentEventFilter = t; renderEvents(); }
+function setCompanyFilter(s) { currentCompanyFilter = s; renderCompanies(); }
+
+function viewReport(type, id) {
+  const r = state[type].find(x => x.id === id);
+  if (!r) return;
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${type === 'morning' ? '🌅 热点早报' : '🌆 行情晚报'} · ${r.date}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="card-meta" style="margin-bottom:12px;">
+        ${r.date ? `<span>📅 ${r.date}</span>` : ''}
+        ${r.source ? `<span>📌 ${escapeHtml(r.source)}</span>` : ''}
+        ${r.generated_at ? `<span>🕐 ${r.generated_at}</span>` : ''}
+      </div>
+      <div class="card-body">${md(r.content || '（无内容）')}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="copyReport('${type}','${id}')">复制全文</button>
+      <button class="btn" onclick="deleteReport('${type}','${id}'); closeModal();">删除</button>
+      <button class="btn" onclick="closeModal()">关闭</button>
+    </div>
+  `, 'modal-large');
+}
+
+function copyReport(type, id) {
+  const r = state[type].find(x => x.id === id);
+  if (!r) return;
+  const text = `# ${type === 'morning' ? '热点早报' : '行情晚报'} · ${r.date}\n\n${r.content}`;
+  navigator.clipboard.writeText(text).then(() => toast('已复制到剪贴板', 'success'));
+}
+
+function deleteReport(type, id) {
+  if (!confirm('确定删除此记录？')) return;
+  state[type] = state[type].filter(x => x.id !== id);
+  save(); renderAll();
+  toast('已删除', 'success');
+}
+
+function openAddReport(type) {
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">+ 新建${type === 'morning' ? '早报' : '晚报'}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>日期 <span class="req">*</span></label>
+        <input type="date" id="rep_date" value="${todayStr()}">
+      </div>
+      <div class="form-row">
+        <label>来源（可选）</label>
+        <input type="text" id="rep_source" placeholder="例：Mavis 早报任务 / 手动整理">
+      </div>
+      <div class="form-row">
+        <label>内容（支持 Markdown）</label>
+        <textarea id="rep_content" rows="14" placeholder="粘贴 AI 生成的内容，或手动撰写..."></textarea>
+        <div class="form-help">支持 **粗体** *斜体* \`code\` # 标题 - 列表 | 表格 | 等 Markdown 语法</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="pasteFromClipboard('rep_content')">📋 从剪贴板粘贴</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitAddReport('${type}')">保存</button>
+    </div>
+  `, 'modal-large');
+}
+
+async function pasteFromClipboard(id) {
+  try {
+    const text = await navigator.clipboard.readText();
+    document.getElementById(id).value = text;
+    toast('已粘贴', 'success');
+  } catch (e) {
+    toast('剪贴板读取失败，请手动粘贴', 'error');
+  }
+}
+
+function submitAddReport(type) {
+  const content = document.getElementById('rep_content').value.trim();
+  if (!content) { toast('请输入内容', 'error'); return; }
+  const item = {
+    id: uid(),
+    date: document.getElementById('rep_date').value || todayStr(),
+    source: document.getElementById('rep_source').value.trim() || '手动录入',
+    content,
+    generated_at: nowStr()
+  };
+  state[type].push(item);
+  // 自动归档
+  state.archive.push({ id: uid(), date: item.date, type: type, ref_id: item.id, added_at: nowStr() });
+  save(); renderAll(); closeModal();
+  toast('已保存', 'success');
+}
+
+function showPrompt(type) {
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">📜 ${type === 'morning' ? '早报' : '晚报'} 提示词</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-help" style="margin-bottom:12px;">复制下方提示词，发送给 AI（ChatGPT/Claude/通义/Mavis 等），让 AI 基于最近交易日数据生成${type === 'morning' ? '早报' : '晚报'}。生成后用"+ 新建${type === 'morning' ? '早报' : '晚报'}"粘贴回来。</div>
+      <textarea readonly style="width:100%; min-height:480px; font-family:'JetBrains Mono',monospace; font-size:11.5px; line-height:1.6; background:var(--bg); border:1px solid var(--border-light); color:var(--text-secondary); padding:14px; border-radius:7px; resize:vertical;">${escapeHtml(PROMPTS[type])}</textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="navigator.clipboard.writeText(PROMPTS['${type}']).then(()=>toast('提示词已复制','success'))">复制提示词</button>
+      <button class="btn" onclick="closeModal()">关闭</button>
+    </div>
+  `, 'modal-large');
+}
+
+function openAddCompany() {
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">+ 添加投研公司</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>代码 <span class="req">*</span></label>
+          <input type="text" id="co_code" placeholder="例: 600519.SH">
+        </div>
+        <div class="form-row">
+          <label>名称 <span class="req">*</span></label>
+          <input type="text" id="co_name" placeholder="例: 贵州茅台">
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>市场</label>
+          <select id="co_market">
+            <option value="A 股">A 股</option>
+            <option value="港股">港股</option>
+            <option value="美股">美股</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>行业</label>
+          <input type="text" id="co_sector" placeholder="例: 白酒 / 半导体 / 创新药">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>标签（逗号分隔）</label>
+        <input type="text" id="co_tags" placeholder="例: 核心资产, 涨价, 高分红">
+      </div>
+      <div class="form-row">
+        <label>研究摘要 / 简介</label>
+        <textarea id="co_snippet" rows="3" placeholder="一句话简述核心逻辑"></textarea>
+      </div>
+      <div class="form-row">
+        <label>首次研究备注</label>
+        <textarea id="co_notes" rows="3" placeholder="买入逻辑、关键数据点、风险点等"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitAddCompany()">保存</button>
+    </div>
+  `);
+}
+
+function submitAddCompany() {
+  const code = document.getElementById('co_code').value.trim();
+  const name = document.getElementById('co_name').value.trim();
+  if (!code || !name) { toast('请填写代码和名称', 'error'); return; }
+  const item = {
+    id: uid(),
+    code, name,
+    market: document.getElementById('co_market').value,
+    sector: document.getElementById('co_sector').value.trim(),
+    tags: document.getElementById('co_tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),
+    snippet: document.getElementById('co_snippet').value.trim(),
+    notes: document.getElementById('co_notes').value.trim(),
+    added_at: nowStr(),
+    last_research: todayStr(),
+    research_history: []
+  };
+  if (item.notes) {
+    item.research_history.push({ date: todayStr(), content: item.notes, summary: item.notes.slice(0, 80) });
+  }
+  state.companies.push(item);
+  state.archive.push({ id: uid(), date: todayStr(), type: 'research', ref_id: item.id, added_at: nowStr() });
+  save(); renderAll(); closeModal();
+  toast(`已添加: ${name}`, 'success');
+}
+
+function viewCompany(id) {
+  const c = state.companies.find(x => x.id === id);
+  if (!c) return;
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(c.name)} <span class="mono text-muted" style="font-size:13px;">${escapeHtml(c.code || '')}</span></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="flex-row" style="margin-bottom:14px; flex-wrap:wrap;">
+        ${c.market ? `<span class="tag tag-info">${escapeHtml(c.market)}</span>` : ''}
+        ${c.sector ? `<span class="tag tag-purple">${escapeHtml(c.sector)}</span>` : ''}
+        ${(c.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
+      </div>
+      ${c.snippet ? `<div class="card-body" style="background:var(--bg); padding:14px; border-radius:8px; margin-bottom:14px;">${escapeHtml(c.snippet)}</div>` : ''}
+      
+      <div class="section-title" style="font-size:14px; margin: 18px 0 10px;">
+        <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+        研究历史（${(c.research_history || []).length}）
+      </div>
+      <div class="timeline">
+        ${(c.research_history || []).slice().reverse().map(rh => `
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-date"><span class="mono">${rh.date}</span></div>
+            <div class="card" style="margin:6px 0 0;">
+              <div class="card-body">${md(rh.content || '')}</div>
+            </div>
+          </div>
+        `).join('') || '<div class="text-dim">暂无研究记录</div>'}
+      </div>
+      
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:14px; margin-bottom:10px;">
+        <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        关联事件（${state.events.filter(e => e.company_code === c.code).length}）
+      </div>
+      ${state.events.filter(e => e.company_code === c.code).slice(0, 5).map(e => `
+        <div class="flex-row" style="padding:6px 0;">
+          <span class="tag ${EVENT_TYPES[e.type]?.color}">${EVENT_TYPES[e.type]?.name || e.type}</span>
+          <span class="mono text-dim">${e.date}</span>
+          <span>${escapeHtml(e.title)}</span>
+        </div>
+      `).join('') || '<div class="text-dim">暂无关联事件</div>'}
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="addResearchToCompany('${c.id}')">+ 添加研究</button>
+      <button class="btn" onclick="deleteCompany('${c.id}'); closeModal();">删除公司</button>
+      <button class="btn" onclick="closeModal()">关闭</button>
+    </div>
+  `, 'modal-large');
+}
+
+function addResearchToCompany(id) {
+  const c = state.companies.find(x => x.id === id);
+  if (!c) return;
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">+ 添加研究记录 · ${escapeHtml(c.name)}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>研究日期 <span class="req">*</span></label>
+        <input type="date" id="rh_date" value="${todayStr()}">
+      </div>
+      <div class="form-row">
+        <label>研究内容 <span class="req">*</span></label>
+        <textarea id="rh_content" rows="10" placeholder="本次研究的核心结论、数据、逻辑变化..."></textarea>
+        <div class="form-help">支持 Markdown 格式</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitResearch('${id}')">保存</button>
+    </div>
+  `);
+}
+
+function submitResearch(id) {
+  const c = state.companies.find(x => x.id === id);
+  if (!c) return;
+  const content = document.getElementById('rh_content').value.trim();
+  if (!content) { toast('请输入研究内容', 'error'); return; }
+  const date = document.getElementById('rh_date').value || todayStr();
+  c.research_history = c.research_history || [];
+  c.research_history.push({ date, content, summary: stripHtml(content).slice(0, 80) });
+  c.last_research = date;
+  state.archive.push({ id: uid(), date, type: 'research', ref_id: c.id, added_at: nowStr() });
+  save(); closeModal();
+  toast('已保存', 'success');
+  if (currentTab === 'companies') renderCompanies();
+  else viewCompany(id);
+}
+
+function deleteCompany(id) {
+  const c = state.companies.find(x => x.id === id);
+  if (!c || !confirm(`确定删除「${c.name}」及其所有研究记录？`)) return;
+  state.companies = state.companies.filter(x => x.id !== id);
+  save(); renderAll();
+  toast('已删除', 'success');
+}
+
+function openAddEvent() {
+  const companyOptions = state.companies.map(c => `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} ${escapeHtml(c.name)}</option>`).join('');
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">+ 录入事件</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>事件类型 <span class="req">*</span></label>
+          <select id="ev_type">
+            ${Object.entries(EVENT_TYPES).map(([k,v]) => `<option value="${k}">${v.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row">
+          <label>事件日期 <span class="req">*</span></label>
+          <input type="date" id="ev_date" value="${todayStr()}">
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>关联公司代码</label>
+          <select id="ev_code">
+            <option value="">不关联</option>
+            ${companyOptions}
+          </select>
+        </div>
+        <div class="form-row">
+          <label>关联公司名称</label>
+          <input type="text" id="ev_name" placeholder="可手动填写或选公司后自动填充">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>事件标题 <span class="req">*</span></label>
+        <input type="text" id="ev_title" placeholder="例: 拟以 23.5 亿收购 XX 科技 100% 股权">
+      </div>
+      <div class="form-row">
+        <label>事件详情</label>
+        <textarea id="ev_desc" rows="6" placeholder="事件的具体内容、关键数据、对公司的影响..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>来源（公告/媒体/传闻）</label>
+        <input type="text" id="ev_source" placeholder="例: 公司公告 2026-08-03 / 财联社">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitAddEvent()">保存</button>
+    </div>
+  `, 'modal-large');
+}
+
+function submitAddEvent() {
+  const type = document.getElementById('ev_type').value;
+  const title = document.getElementById('ev_title').value.trim();
+  if (!title) { toast('请填写事件标题', 'error'); return; }
+  const item = {
+    id: uid(),
+    type,
+    date: document.getElementById('ev_date').value || todayStr(),
+    company_code: document.getElementById('ev_code').value.trim(),
+    company_name: document.getElementById('ev_name').value.trim() ||
+      (state.companies.find(c => c.code === document.getElementById('ev_code').value)?.name || ''),
+    title,
+    description: document.getElementById('ev_desc').value.trim(),
+    source: document.getElementById('ev_source').value.trim(),
+    added_at: nowStr()
+  };
+  state.events.push(item);
+  state.archive.push({ id: uid(), date: item.date, type: 'event', ref_id: item.id, added_at: nowStr() });
+  save(); renderAll(); closeModal();
+  toast('已保存', 'success');
+}
+
+function viewEvent(id) {
+  const e = state.events.find(x => x.id === id);
+  if (!e) return;
+  const et = EVENT_TYPES[e.type] || { name: e.type, color: '' };
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">
+        <span class="tag ${et.color}">${et.name}</span>
+        ${escapeHtml(e.title)}
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="flex-row" style="margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+        <span class="card-meta">📅 ${e.date}</span>
+        ${e.company_code ? `<span class="card-meta">🏢 ${escapeHtml(e.company_code)} ${escapeHtml(e.company_name || '')}</span>` : ''}
+        ${e.source ? `<span class="card-meta">📌 ${escapeHtml(e.source)}</span>` : ''}
+      </div>
+      <div class="card-body">${md(e.description || '（无详情）')}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="deleteEvent('${e.id}'); closeModal();">删除</button>
+      <button class="btn" onclick="closeModal()">关闭</button>
+    </div>
+  `, 'modal-large');
+}
+
+function deleteEvent(id) {
+  if (!confirm('确定删除此事件？')) return;
+  state.events = state.events.filter(x => x.id !== id);
+  save(); renderAll();
+  toast('已删除', 'success');
+}
+
+// ============== 导入/导出/同步 ==============
+function exportJSON() {
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ai-dashboard-${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('已导出 JSON', 'success');
+}
+
+function importJSON() {
+  document.getElementById('fileInput').click();
+}
+
+function handleFileImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (mergeData(data)) {
+        save(); renderAll();
+        toast('导入成功', 'success');
+      } else {
+        toast('JSON 格式不匹配', 'error');
+      }
+    } catch (e) {
+      toast('JSON 解析失败: ' + e.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function mergeData(data) {
+  if (typeof data !== 'object' || data === null) return false;
+  let changed = false;
+  ['morning','evening','companies','events','archive'].forEach(key => {
+    if (Array.isArray(data[key])) {
+      // 按 id 去重合并
+      const existing = new Set(state[key].map(x => x.id));
+      data[key].forEach(item => {
+        if (!item.id) item.id = uid();
+        if (!existing.has(item.id)) {
+          state[key].push(item);
+          changed = true;
+        }
+      });
+    }
+  });
+  if (data.config) {
+    state.config = { ...state.config, ...data.config };
+    changed = true;
+  }
+  return true;
+}
+
+async function syncRemote() {
+  const url = state.config.remoteDataUrl;
+  if (!url) {
+    toast('请先在「设置」中配置远程数据 URL', 'info');
+    openSettings();
+    return;
+  }
+  toast('正在同步...', 'info');
+  try {
+    const resp = await fetch(url, { cache: 'no-cache' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (mergeData(data)) {
+      save(); renderAll();
+      state.config.lastSync = nowStr();
+      save();
+      document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
+      toast('同步成功', 'success');
+    } else {
+      toast('数据格式不匹配', 'error');
+    }
+  } catch (e) {
+    toast('同步失败: ' + e.message, 'error');
+  }
+}
+
+function openSettings() {
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">⚙ 设置</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>远程数据 URL（JSON）</label>
+        <input type="text" id="cfg_remoteUrl" value="${escapeHtml(state.config.remoteDataUrl || '')}" placeholder="https://your-cdn.com/ai-dashboard-data.json">
+        <div class="form-help">
+          · 用于从 CDN/对象存储 拉取 Mavis 定时任务生成的早晚报数据<br>
+          · 拉取后按 ID 去重合并，不会覆盖你手动录入的记录<br>
+          · 建议把生成的 JSON 放在支持 CORS 的公开地址
+        </div>
+      </div>
+      <div class="form-row">
+        <label>自动同步</label>
+        <select id="cfg_autoSync">
+          <option value="false" ${!state.config.autoSync ? 'selected' : ''}>关闭</option>
+          <option value="true" ${state.config.autoSync ? 'selected' : ''}>打开（每 5 分钟）</option>
+        </select>
+      </div>
+      
+      <div class="divider"></div>
+      <div class="section-title" style="font-size:14px; margin-bottom:8px;">数据统计</div>
+      <div class="flex-row" style="gap:18px; flex-wrap:wrap;">
+        <span class="text-muted">早报: <strong>${state.morning.length}</strong></span>
+        <span class="text-muted">晚报: <strong>${state.evening.length}</strong></span>
+        <span class="text-muted">公司: <strong>${state.companies.length}</strong></span>
+        <span class="text-muted">事件: <strong>${state.events.length}</strong></span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="localStorage.removeItem('${STORAGE_KEY}'); location.reload();">重置全部</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+    </div>
+  `);
+}
+
+function saveSettings() {
+  state.config.remoteDataUrl = document.getElementById('cfg_remoteUrl').value.trim();
+  state.config.autoSync = document.getElementById('cfg_autoSync').value === 'true';
+  save(); closeModal();
+  toast('设置已保存', 'success');
+  if (state.config.autoSync) startAutoSync();
+}
+
+// 自动同步
+let autoSyncTimer = null;
+function startAutoSync() {
+  if (autoSyncTimer) clearInterval(autoSyncTimer);
+  autoSyncTimer = setInterval(() => {
+    if (state.config.remoteDataUrl && state.config.autoSync) syncRemote();
+  }, 5 * 60 * 1000);
+}
+
+// ============== Modal ==============
+function openModal(html, klass = '') {
+  document.getElementById('modalContainer').innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal ${klass}">${html}</div></div>`;
+}
+function closeModal() {
+  document.getElementById('modalContainer').innerHTML = '';
+}
+
+// ============== Toast ==============
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span>${escapeHtml(msg)}</span>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// ============== 时钟 ==============
+function updateTime() {
+  const d = new Date();
+  const w = ['日','一','二','三','四','五','六'][d.getDay()];
+  document.getElementById('liveTime').innerHTML = `<strong>${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}</strong>${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} 周${w}`;
+}
+
+// ============== 对外 API（供 Mavis 调用）==============
+window.MavisDashboard = {
+  addCompany: (data) => {
+    const item = { id: uid(), added_at: nowStr(), research_history: [], tags: [], ...data };
+    if (item.notes) item.research_history.push({ date: todayStr(), content: item.notes });
+    state.companies.push(item);
+    state.archive.push({ id: uid(), date: todayStr(), type: 'research', ref_id: item.id, added_at: nowStr() });
+    save(); renderAll();
+    return item.id;
+  },
+  addEvent: (data) => {
+    const item = { id: uid(), added_at: nowStr(), ...data };
+    state.events.push(item);
+    state.archive.push({ id: uid(), date: item.date || todayStr(), type: 'event', ref_id: item.id, added_at: nowStr() });
+    save(); renderAll();
+    return item.id;
+  },
+  addReport: (type, data) => {
+    const item = { id: uid(), generated_at: nowStr(), ...data };
+    state[type].push(item);
+    state.archive.push({ id: uid(), date: item.date || todayStr(), type, ref_id: item.id, added_at: nowStr() });
+    save(); renderAll();
+    return item.id;
+  },
+  addResearch: (companyId, content) => {
+    const c = state.companies.find(x => x.id === companyId);
+    if (!c) return null;
+    c.research_history = c.research_history || [];
+    c.research_history.push({ date: todayStr(), content, summary: stripHtml(content).slice(0, 80) });
+    c.last_research = todayStr();
+    state.archive.push({ id: uid(), date: todayStr(), type: 'research', ref_id: c.id, added_at: nowStr() });
+    save(); renderAll();
+    return true;
+  },
+  getState: () => state,
+  exportJSON: exportJSON,
+  switchTab: switchTab
+};
+
+// ============== 启动 ==============
+load();
+updateTime();
+setInterval(updateTime, 1000);
+renderAll();
+if (state.config.lastSync) document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
+// 配置了远程 URL 就自动同步（不论手动/自动），无需点按钮
+if (state.config.remoteDataUrl) {
+  setTimeout(() => syncRemote(), 500);
+  if (state.config.autoSync) startAutoSync();
+}
+</script>
+</body>
+</html>
