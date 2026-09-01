@@ -53,44 +53,34 @@ def merge_dashboard() -> dict:
     }
 
 
-def get_next_version_filename() -> Path:
-    """获取下一个版本号文件名（绕过 Pages artifact 缓存）
+def get_deploy_target() -> Path:
+    """返回单一固定部署目标文件
 
-    每次部署用新文件名 v{N}.json，让 index.html 知道拉哪个。
-    旧文件保留作为历史归档。
+    经验教训：v4/v5/...版本号后缀的新 file 会触发 GitHub Pages
+    "Page build failed" 错误（2026-09-02 验证）。只 update 已有 file
+    是最稳的方式。
     """
-    existing = sorted(DATA_DIR.glob("dashboard-data-v*.json"))
-    if existing:
-        last = existing[-1].name
-        # dashboard-data-v3.json → 4
-        try:
-            n = int(last.replace("dashboard-data-v", "").replace(".json", ""))
-        except ValueError:
-            n = 1
-    else:
-        n = 1
-    return DATA_DIR / f"dashboard-data-v{n + 1}.json"
+    return ROOT / "dashboard-data-v3.json"
 
 
 def write_dashboard(data: dict) -> Path:
-    """写入 dashboard-data.json + 新的版本号文件"""
+    """写入 dashboard-data.json + 同步到部署目标"""
     out_main = DATA_DIR / "dashboard-data.json"
-    out_versioned = get_next_version_filename()
+    out_deploy = get_deploy_target()
     with open(out_main, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    with open(out_versioned, "w", encoding="utf-8") as f:
+    with open(out_deploy, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"[merge] wrote {out_main.name} + {out_versioned.name}")
-    return out_versioned  # 返回版本号文件作为 deploy 目标
+    print(f"[merge] wrote {out_main.name} + {out_deploy.name}")
+    return out_deploy  # 返回部署目标
 
 
 def push_to_github(message: str, deploy_file: Path = None) -> bool:
     """推送到 GitHub（如果配置）
 
-    部署策略（绕开 Pages artifact 缓存）：
-    1. 用 API PUT deploy_file 到 GitHub
-    2. 同时 PUT dashboard-data.json (保持 main 完整)
-    3. 触发 Pages build（自动）
+    部署策略（2026-09-02 经验）：
+    1. update 已有的 dashboard-data-v3.json（不要 create 新 file）
+    2. 同时 update data/dashboard-data.json 作为历史归档
     """
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
@@ -99,7 +89,7 @@ def push_to_github(message: str, deploy_file: Path = None) -> bool:
         return False
 
     if deploy_file is None:
-        deploy_file = DATA_DIR / "dashboard-data.json"
+        deploy_file = get_deploy_target()
 
     try:
         import base64
