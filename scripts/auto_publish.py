@@ -53,31 +53,102 @@ def merge_dashboard() -> dict:
     }
 
 
+def get_next_version_filename() -> Path:
+    """获取下一个版本号文件名（绕过 Pages artifact 缓存）
+
+    每次部署用新文件名 v{N}.json，让 index.html 知道拉哪个。
+    旧文件保留作为历史归档。
+    """
+    existing = sorted(DATA_DIR.glob("dashboard-data-v*.json"))
+    if existing:
+        last = existing[-1].name
+        # dashboard-data-v3.json → 4
+        try:
+            n = int(last.replace("dashboard-data-v", "").replace(".json", ""))
+        except ValueError:
+            n = 1
+    else:
+        n = 1
+    return DATA_DIR / f"dashboard-data-v{n + 1}.json"
+
+
 def write_dashboard(data: dict) -> Path:
-    """写入 dashboard-data.json"""
-    out = DATA_DIR / "dashboard-data.json"
-    with open(out, "w", encoding="utf-8") as f:
+    """写入 dashboard-data.json + 新的版本号文件"""
+    out_main = DATA_DIR / "dashboard-data.json"
+    out_versioned = get_next_version_filename()
+    with open(out_main, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    return out
+    with open(out_versioned, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"[merge] wrote {out_main.name} + {out_versioned.name}")
+    return out_versioned  # 返回版本号文件作为 deploy 目标
 
 
-def push_to_github(message: str) -> bool:
-    """推送到 GitHub（如果配置）"""
+def push_to_github(message: str, deploy_file: Path = None) -> bool:
+    """推送到 GitHub（如果配置）
+
+    部署策略（绕开 Pages artifact 缓存）：
+    1. 用 API PUT deploy_file 到 GitHub
+    2. 同时 PUT dashboard-data.json (保持 main 完整)
+    3. 触发 Pages build（自动）
+    """
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
     if not token or not repo:
         print("[github] GITHUB_TOKEN / GITHUB_REPO 未配置，跳过 push")
         return False
 
+    if deploy_file is None:
+        deploy_file = DATA_DIR / "dashboard-data.json"
+
     try:
-        # 简单做法：用 git 命令行（前提是已经 git init + 配置 remote）
-        # 如果用 API，需要更多代码
-        subprocess.run(["git", "add", "dashboard-data.json"], cwd=ROOT, check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", message], cwd=ROOT, check=True, capture_output=True)
-        subprocess.run(["git", "push", "origin", "main"], cwd=ROOT, check=True, capture_output=True)
-        print(f"[github] push 成功: {message}")
+        import base64
+        from urllib import request as urlreq
+
+        api_base = f"https://api.github.com/repos/{repo}"
+
+        for file_path in [DATA_DIR / "dashboard-data.json", deploy_file]:
+            rel_path = str(file_path.relative_to(ROOT))
+            api_url = f"{api_base}/contents/{rel_path}"
+
+            # 取 SHA
+            req = urlreq.Request(
+                api_url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                },
+            )
+            sha = None
+            try:
+                with urlreq.urlopen(req) as resp:
+                    data = json.loads(resp.read())
+                    sha = data.get("sha")
+            except error.HTTPError as e:
+                if e.code != 404:
+                    raise
+
+            content_b64 = base64.b64encode(file_path.read_bytes()).decode()
+            body = {"message": f"🤖 {message} ({file_path.name})", "content": content_b64}
+            if sha:
+                body["sha"] = sha
+
+            put_req = urlreq.Request(
+                api_url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "Content-Type": "application/json",
+                },
+                method="PUT",
+            )
+            with urlreq.urlopen(put_req) as resp:
+                r = json.loads(resp.read())
+                print(f"[github] PUT {rel_path}: {r['commit']['sha'][:10]}")
+
         return True
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         print(f"[github] push 失败: {e}")
         return False
 
@@ -152,8 +223,7 @@ def main():
 
     # 1. 合并 + 写入
     data = merge_dashboard()
-    out = write_dashboard(data)
-    print(f"[merge] 写入 {out}")
+    versioned_out = write_dashboard(data)
     print(f"[merge] morning={len(data['morning'])}, evening={len(data['evening'])}")
 
     # 2. 找最新的报告
@@ -164,9 +234,9 @@ def main():
     latest = target[0]
     content = latest.get("content", "")
 
-    # 3. 推送到 GitHub
+    # 3. 推送到 GitHub（同时 PUT 版本号文件 + 主文件）
     push_msg = f"🤖 自动更新：{date} {report_type} [{datetime.now().strftime('%H:%M')}]"
-    push_to_github(push_msg)
+    push_to_github(push_msg, deploy_file=versioned_out)
 
     # 4. 推送到飞书
     push_to_feishu(report_type, content, date)
