@@ -2573,6 +2573,13 @@ updateTime();
 setInterval(updateTime, 1000);
 renderAll();
 if (state.config.lastSync) document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
+// 默认远程数据地址（首次访问时自动同步，用户也可在设置中改）
+const DEFAULT_REMOTE_URL = 'https://ceciliachung1123-rgb.github.io/ai-invest-dashboard/data/dashboard-data-v2.json';
+// 兼容旧地址：如果 remoteDataUrl 仍指向旧路径但本地空，自动重定向到 v2
+if (!state.config.remoteDataUrl && state.morning.length === 0 && state.evening.length === 0) {
+  state.config.remoteDataUrl = DEFAULT_REMOTE_URL;
+  save();
+}
 // 配置了远程 URL 就自动同步（不论手动/自动），无需点按钮
 if (state.config.remoteDataUrl) {
   setTimeout(() => syncRemote(), 500);
