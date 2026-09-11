@@ -1613,6 +1613,374 @@
         "雪球 (算电协同产业链分析)"
       ],
       "disclaimer": "本文仅梳理公开行情与新闻，不构成投资建议。数据时间窗为 2026-09-10 收盘，海外信息为隔夜。"
+    },
+    {
+      "date": "2026-09-11",
+      "title": "AI 投资行情晚报 | 2026-09-11 周五",
+      "summary": "三大指数放量深V，沪指收跌1.18%；MLCC/军工/CPO逆势走强承接抛压，全市场4800余只下跌但成交额升至1.99万亿（+3248亿）。情绪周期定位：修复。",
+      "indices": [
+        {
+          "name": "上证指数",
+          "code": "000001.SH",
+          "close": 3888.11,
+          "chg": -46.29,
+          "pct": -1.18,
+          "amount_yi": 9581.86,
+          "high": 3912.32,
+          "low": 3852.03,
+          "open": 3910.92,
+          "prev_close": 3934.4
+        },
+        {
+          "name": "深证成指",
+          "code": "399001.SZ",
+          "close": 13471.26,
+          "chg": -146.41,
+          "pct": -1.08,
+          "amount_yi": 10137.12,
+          "high": 13522.3,
+          "low": 13263.35,
+          "open": 13483.63,
+          "prev_close": 13617.67
+        },
+        {
+          "name": "创业板指",
+          "code": "399006.SZ",
+          "close": 3322.04,
+          "chg": -16.38,
+          "pct": -0.49,
+          "amount_yi": 4626.15,
+          "high": 3335.81,
+          "low": 3261.1,
+          "open": 3310.01,
+          "prev_close": 3338.42
+        },
+        {
+          "name": "科创50",
+          "code": "000688.SH",
+          "close": 1553.39,
+          "chg": -15.83,
+          "pct": -1.01,
+          "amount_yi": 778.8,
+          "high": 1556.68,
+          "low": 1516.2,
+          "open": 1548.7,
+          "prev_close": 1569.22
+        },
+        {
+          "name": "北证50",
+          "code": "899050.BJ",
+          "close": 1023.46,
+          "chg": -27.95,
+          "pct": -2.66,
+          "amount_yi": 152.91,
+          "high": 1041.8,
+          "low": 1011.63,
+          "open": 1041.43,
+          "prev_close": 1051.41
+        },
+        {
+          "name": "沪深300",
+          "code": "000300.SH",
+          "close": 4510.16,
+          "chg": -38.23,
+          "pct": -0.84,
+          "amount_yi": 5222.07,
+          "high": 4520.17,
+          "low": 4461.57,
+          "open": 4514.3,
+          "prev_close": 4548.39
+        }
+      ],
+      "breadth": {
+        "sh_above": 269,
+        "sh_limit_up": 22,
+        "sh_below": 2027,
+        "sh_limit_down": 8,
+        "sh_flat": 22,
+        "sz_above": 336,
+        "sz_limit_up": 18,
+        "sz_below": 2540,
+        "sz_limit_down": 13,
+        "sz_flat": 20,
+        "up_total": 605,
+        "limit_up_total": 40,
+        "down_total": 4567,
+        "limit_down_total": 21
+      },
+      "north_bound": {
+        "amount_yi": 2913.2,
+        "note": "tradvalnetsum（净买入）官方接口返回为空，本字段为沪深股通买卖合计成交额；净买入数据缺失"
+      },
+      "south_bound": {
+        "net_in_hkd_yi": 44.31,
+        "note": "南向资金净买入港股超 44 亿港元"
+      },
+      "main_capital_top10": [
+        {
+          "code": "300308.SZ",
+          "name": "中际旭创",
+          "main_net_wan": 319509.1,
+          "note": "CPO光模块"
+        },
+        {
+          "code": "688801.SH",
+          "name": "N燧原-U",
+          "main_net_wan": 215932.46,
+          "note": "AI芯片"
+        },
+        {
+          "code": "300502.SZ",
+          "name": "新易盛",
+          "main_net_wan": 213585.13,
+          "note": "CPO光模块"
+        },
+        {
+          "code": "000636.SZ",
+          "name": "风华高科",
+          "main_net_wan": 211475.25,
+          "note": "MLCC"
+        },
+        {
+          "code": "600410.SH",
+          "name": "华胜天成",
+          "main_net_wan": 102168.65,
+          "note": "AI算力"
+        },
+        {
+          "code": "600967.SH",
+          "name": "内蒙一机",
+          "main_net_wan": 80884.71,
+          "note": "军工"
+        },
+        {
+          "code": "600522.SH",
+          "name": "中天科技",
+          "main_net_wan": 78490.54,
+          "note": "通信"
+        },
+        {
+          "code": "688002.SH",
+          "name": "睿创微纳",
+          "main_net_wan": 62235.47,
+          "note": "军工电子"
+        },
+        {
+          "code": "002297.SZ",
+          "name": "博云新材",
+          "main_net_wan": 61979.6,
+          "note": "军工/航空航天"
+        },
+        {
+          "code": "600105.SH",
+          "name": "永鼎股份",
+          "main_net_wan": 60315.07,
+          "note": "光通信"
+        }
+      ],
+      "sector_top10": [
+        {
+          "code": "650300.XBHS",
+          "name": "地面兵装Ⅱ",
+          "pct": 4.48,
+          "limit_up": 3
+        },
+        {
+          "code": "GN0012.XBHS",
+          "name": "覆铜板",
+          "pct": 4.31,
+          "limit_up": 1
+        },
+        {
+          "code": "610200.XBHS",
+          "name": "玻璃玻纤",
+          "pct": 3.78,
+          "limit_up": 2
+        },
+        {
+          "code": "270200.XBHS",
+          "name": "元件",
+          "pct": 3.0,
+          "limit_up": 9
+        },
+        {
+          "code": "101345.XBHS",
+          "name": "被动元件概念",
+          "pct": 2.22,
+          "limit_up": 4
+        },
+        {
+          "code": "GN0008.XBHS",
+          "name": "MLCC",
+          "pct": 1.76,
+          "limit_up": 2
+        },
+        {
+          "code": "GN2439.XBHS",
+          "name": "陶瓷基板",
+          "pct": 1.74,
+          "limit_up": 1
+        },
+        {
+          "code": "GN2422.XBHS",
+          "name": "电子布",
+          "pct": 1.73,
+          "limit_up": 0
+        },
+        {
+          "code": "GN2316.XBHS",
+          "name": "中兵系",
+          "pct": 1.61,
+          "limit_up": 2
+        },
+        {
+          "code": "GN2400.XBHS",
+          "name": "印巴冲突概念",
+          "pct": 1.25,
+          "limit_up": 1
+        }
+      ],
+      "dragon_tiger": {
+        "summary": "今日多只AI硬件/军工股上榜，机构分歧明显",
+        "samples": [
+          {
+            "name": "博云新材",
+            "pct": 7.44,
+            "turnover_pct": 33.2,
+            "amount_yi": 44.0,
+            "net_institutional_wan": 15200,
+            "net_hk_wan": 13000,
+            "reason": "日换手率33.20%"
+          },
+          {
+            "name": "崇达技术",
+            "pct": 10.0,
+            "turnover_pct": 13.47,
+            "amount_yi": 20.14,
+            "net_institutional_wan": -1010.98,
+            "net_hk_wan": -693.5,
+            "reason": "日涨幅偏离值达11.45%"
+          },
+          {
+            "name": "法尔胜",
+            "pct": -0.59,
+            "turnover_pct": 19.88,
+            "amount_yi": 7.17,
+            "net_institutional_wan": -6161.26,
+            "reason": "日振幅值15.16%"
+          },
+          {
+            "name": "云南旅游",
+            "pct": -10.0,
+            "turnover_pct": 14.55,
+            "amount_yi": 8.39,
+            "net_hk_wan": -3130.31,
+            "reason": "日跌幅偏离值-8.55%"
+          },
+          {
+            "name": "桂林旅游",
+            "pct": 1.86,
+            "turnover_pct": 35.16,
+            "amount_yi": 16.81,
+            "reason": "日换手率35.16%"
+          }
+        ]
+      },
+      "us_overnight": {
+        "date_local": "2026-09-10",
+        "dji": {
+          "close": 52064.1,
+          "pct": -0.6
+        },
+        "spx": {
+          "close": 7591.7,
+          "pct": -0.58
+        },
+        "ixic": {
+          "close": 26081.72,
+          "pct": -0.65
+        },
+        "sox": {
+          "pct": -2.66,
+          "note": "费城半导体"
+        },
+        "gold": {
+          "close": 4358.5,
+          "pct": -2.29
+        },
+        "wti_oil": {
+          "close": 102.48,
+          "pct": 6.69
+        },
+        "us_10y_yield_pct": 4.965,
+        "us_30y_yield_pct": 5.373,
+        "consecutive_down_days": 4
+      },
+      "hk_today": {
+        "hsi": {
+          "close": 24805.63,
+          "pct": -0.6
+        },
+        "hscei": {
+          "close": 8246.33,
+          "pct": -0.34
+        },
+        "hstech": {
+          "close": 4320.57,
+          "pct": -0.23
+        },
+        "note": "午后恒科一度翻红，光模块中际旭创港股大涨4%（FCC限制名单未涉及）"
+      },
+      "key_events": [
+        {
+          "time": "9/9-9/11",
+          "text": "2026中国国际光电博览会9月9日开幕，MLCC/PCB/光模块持续催化【已归因】"
+        },
+        {
+          "time": "本周",
+          "text": "报道：三星电子、SK海力士存储芯片库存降至不足10天，明年或现史上最严重短缺【已归因】"
+        },
+        {
+          "time": "9/11盘中",
+          "text": "FCC最终规则正式落地，中际旭创/新易盛/东山精密/天孚通信未被纳入限制名单【已归因】"
+        },
+        {
+          "time": "本周",
+          "text": "金融强国建设十五五规划出台，明确到2030年形成中国特色现代金融体系总体框架【已归因】"
+        },
+        {
+          "time": "9/9-9/10",
+          "text": "美国8月PPI超预期+欧洲央行加息25bp+CME显示美联储9月加息概率71.3%【已归因】"
+        },
+        {
+          "time": "9/10",
+          "text": "30年期美债收益率突破5.373%，创2007年6月以来新高【已归因】"
+        },
+        {
+          "time": "9/10",
+          "text": "伊朗革命卫队称打击美军两艘驱逐舰；特朗普称对伊战事11月中期选举后结束【已归因】"
+        }
+      ],
+      "sentiment_cycle": "修复",
+      "watch_tomorrow": [
+        "若MLCC/PCB板块（中际旭创、风华高科、崇达技术）在指数不创新低时继续走强，说明资金已在弱势中建立主线，反弹空间打开",
+        "若军工（光电股份、内蒙一机、博云新材）出现机构净买入转负，说明这轮军工/印巴概念只是避险脉冲而非新主线",
+        "若成交量无法维持1.5万亿以上，深V反弹可能仅是技术性反抽，下周仍有再下探风险",
+        "若北向资金恢复净流入（今日tradvalnetsum官方接口缺失，需观察明日），说明外资对A股底部认可度提升",
+        "9月15-17日：苹果发布会、华为全联接大会（AI算力催化窗口）"
+      ],
+      "anti_attribution_note": "三大指数午后深V反弹的具体时点触发逻辑无法精确归因——13:50前后的买盘未对应单一公开新闻事件，可能是机构调仓+技术性抄底共振【无法归因】",
+      "data_source": {
+        "indices": "IndexDailyQuote（聚源内码：1, 1055, 11089, 303968, 472634, 3145）",
+        "breadth": "MarketLimitUpDownCount (SH/SZ)",
+        "north_south": "HSGTTradeStats（注：北向净买入字段返回空）",
+        "main_capital": "MarketFundFlowRank (secuMarketCode=HSAS, sortFieldName=main_net_turnover)",
+        "sector": "SectorRank (secuMarketCode=SW)",
+        "us": "WebSearch 新华社/澎湃新闻",
+        "hk": "WebSearch 新华社/每经"
+      },
+      "generated_at": "2026-09-11T19:08:00+08:00",
+      "id": "evening-2026-09-11"
     }
   ],
   "weekly": [
@@ -1669,5 +2037,5 @@
       ]
     }
   ],
-  "updated_at": "2026-09-10T23:02:54"
+  "updated_at": "2026-09-11T11:07:12"
 }
