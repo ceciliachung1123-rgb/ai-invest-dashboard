@@ -5188,6 +5188,305 @@
         "北证 50 大跌 1.07% 无直接新闻归因",
         "出版 +3.73% 无板块级新闻归因"
       ]
+    },
+    {
+      "id": "evening-2026-09-23",
+      "date": "2026-09-23",
+      "generated_at": "2026-09-23T19:07:09+08:00",
+      "title": "AI 投资行情晚报 | 节前避险主导，缩量回踩均线",
+      "summary": "上证 -0.39% 收 3936.52，深成 -0.64% 收 13636.07，创业板 -0.60% 收 3379.61，科创 50 -0.25% 收 1660.85。成交 1.78 万亿较前日缩量 3705 亿。上涨 1891 家、下跌 3564 家，涨停 51 家、跌停 14 家。北证 50 逆势 +2.60%。半导体材料/非金属材料/玻璃基板领涨，煤炭/数字媒体/影视/油气跌幅居前。情绪周期定位：分歧。",
+      "market_overview": {
+        "indices": [
+          {
+            "name": "上证指数",
+            "code": "000001",
+            "close": 3936.52,
+            "change_pct": -0.39,
+            "change_points": -15.61,
+            "amount_yi": 8341.33
+          },
+          {
+            "name": "深证成指",
+            "code": "399001",
+            "close": 13636.07,
+            "change_pct": -0.64,
+            "change_points": -87.67,
+            "amount_yi": 9308.44
+          },
+          {
+            "name": "创业板指",
+            "code": "399006",
+            "close": 3379.61,
+            "change_pct": -0.6,
+            "change_points": -20.32,
+            "amount_yi": 4427.42
+          },
+          {
+            "name": "科创50",
+            "code": "000688",
+            "close": 1660.85,
+            "change_pct": -0.25,
+            "change_points": -4.19,
+            "amount_yi": 751.75
+          },
+          {
+            "name": "沪深300",
+            "code": "000300",
+            "close": 4517.28,
+            "change_pct": -0.6,
+            "change_points": -27.31,
+            "amount_yi": 3782.89
+          },
+          {
+            "name": "北证50",
+            "code": "899050",
+            "close": 1074.04,
+            "change_pct": 2.6,
+            "change_points": 27.24,
+            "amount_yi": 183.46
+          }
+        ],
+        "hk": [
+          {
+            "name": "恒生指数",
+            "close": 24834.12,
+            "change_pct": -1.01
+          },
+          {
+            "name": "恒生科技指数",
+            "close": 4379.07,
+            "change_pct": -1.33
+          }
+        ],
+        "breadth": {
+          "up": 1891,
+          "down": 3564,
+          "limit_up": 51,
+          "limit_down": 14,
+          "sh_up": 851,
+          "sh_down": 1412,
+          "sh_limit_up": 30,
+          "sh_limit_down": 7,
+          "sz_up": 906,
+          "sz_down": 1954,
+          "sz_limit_up": 21,
+          "sz_limit_down": 7
+        },
+        "total_amount_wanyi": 1.78,
+        "amount_change_yi": -3705
+      },
+      "global_context": {
+        "us": [
+          {
+            "label": "道琼斯",
+            "close": 51863.69,
+            "change_pct": -0.36
+          },
+          {
+            "label": "标普500",
+            "close": 7764.64,
+            "change_pct": 0.0
+          },
+          {
+            "label": "纳斯达克",
+            "close": 27244.28,
+            "change_pct": 0.45,
+            "note": "创新高"
+          }
+        ],
+        "oil": {
+          "wti": 94.59,
+          "brent": 99.25,
+          "note": "美伊会谈顺利，国际油价五连跌"
+        },
+        "us10y_yield": 4.961,
+        "us2y_yield": 4.754
+      },
+      "flows": {
+        "north": {
+          "tradvalsum_yi": 2365.05,
+          "tradvalnetsum_yi": null,
+          "note": "北向 tradvalnetsum 数据未披露，无法判断净买入方向【无法归因】"
+        },
+        "south": {
+          "tradvalsum_yi": 821.39,
+          "tradvalnetsum_yi": 34.49,
+          "note": "南向净买入 34.49 亿"
+        },
+        "top_inflow": [
+          {
+            "name": "沃格光电",
+            "main_net_wan": 112678.58
+          },
+          {
+            "name": "沪电股份",
+            "main_net_wan": 103748.6
+          },
+          {
+            "name": "佰维存储",
+            "main_net_wan": 90853.09
+          },
+          {
+            "name": "江淮汽车",
+            "main_net_wan": 76601.08
+          },
+          {
+            "name": "长鑫科技",
+            "main_net_wan": 67627.35
+          }
+        ],
+        "top_outflow": [
+          {
+            "name": "瑞芯微",
+            "main_net_wan": -161179.02
+          },
+          {
+            "name": "东山精密",
+            "main_net_wan": -153646.17
+          },
+          {
+            "name": "新易盛",
+            "main_net_wan": -149283.46
+          },
+          {
+            "name": "亨通光电",
+            "main_net_wan": -107189.34
+          },
+          {
+            "name": "中国长城",
+            "main_net_wan": -84774.86
+          }
+        ]
+      },
+      "sectors": {
+        "top": [
+          {
+            "name": "其他家电Ⅱ",
+            "change_pct": 2.44,
+            "note": "领涨"
+          },
+          {
+            "name": "房地产服务",
+            "change_pct": 2.17
+          },
+          {
+            "name": "非金属材料Ⅱ",
+            "change_pct": 1.79
+          },
+          {
+            "name": "水泥",
+            "change_pct": 1.65
+          },
+          {
+            "name": "厨卫电器",
+            "change_pct": 1.53
+          },
+          {
+            "name": "生物制品",
+            "change_pct": 1.5
+          },
+          {
+            "name": "元件",
+            "change_pct": 1.47
+          },
+          {
+            "name": "半导体",
+            "change_pct": 1.46
+          }
+        ],
+        "bottom": [
+          {
+            "name": "焦炭Ⅱ",
+            "change_pct": -5.21
+          },
+          {
+            "name": "广告营销",
+            "change_pct": -3.17
+          },
+          {
+            "name": "航海装备Ⅱ",
+            "change_pct": -2.94
+          },
+          {
+            "name": "数字媒体",
+            "change_pct": -2.91
+          },
+          {
+            "name": "林业Ⅱ",
+            "change_pct": -2.78
+          },
+          {
+            "name": "油服工程",
+            "change_pct": -2.61
+          },
+          {
+            "name": "影视院线",
+            "change_pct": -2.53
+          },
+          {
+            "name": "游戏Ⅱ",
+            "change_pct": -2.5
+          }
+        ]
+      },
+      "drivers": [
+        {
+          "event": "美债收益率居高 + 美联储鹰派讲话",
+          "event_time": "盘前",
+          "explanation": "10 年美债 4.96%、2 年 4.75%；美联储巴尔金称通胀压力可能持续更久；里士满联储巴尔金警告通胀冲击需要时间减弱。利率环境压制成长股估值。",
+          "tag": "已归因"
+        },
+        {
+          "event": "国庆长假节前避险",
+          "event_time": "全天",
+          "explanation": "距国庆仅 5 个交易日，融资盘主动降杠杆、机构锁定收益，沪深京三市成交额较前日缩量 3705 亿至 1.78 万亿。",
+          "tag": "已归因"
+        },
+        {
+          "event": "超强台风桦加沙逼近广东",
+          "event_time": "9-23 14:00 后",
+          "explanation": "深圳 14:00 起五停（停工/停业/停市/停运/停课），珠三角资金面心态谨慎；24 日预计在广东台山到湛江登陆。",
+          "tag": "已归因"
+        },
+        {
+          "event": "国际油价五连跌",
+          "event_time": "9-22 收盘后",
+          "explanation": "美伊会谈 3 小时，特朗普称富有成效；油气开采、海运、部分资源品承压；航空、化工下游成本端改善。",
+          "tag": "已归因"
+        },
+        {
+          "event": "AI/传媒/影视前期热点获利兑现",
+          "event_time": "全天",
+          "explanation": "数字媒体 -2.91%、影视院线 -2.53%、游戏 -2.50%，前期热门的 AI 应用/短剧方向资金加速流出。",
+          "tag": "已归因"
+        },
+        {
+          "event": "北向资金流向",
+          "event_time": "全天",
+          "explanation": "HSGTTradeStats 沪深股通 tradvalnetsum 字段为 null（API 数据盲点），无法判断北向净买入还是净卖出，因此无法把北向资金归因为今日下跌或上涨原因。",
+          "tag": "无法归因"
+        }
+      ],
+      "sentiment_cycle": "分歧",
+      "cycle_options": [
+        "冰点",
+        "修复",
+        "发酵",
+        "主升",
+        "分歧",
+        "退潮"
+      ],
+      "watchlist_tomorrow": [
+        "如果上证在 3920-3940 缩量企稳并伴随半导体材料板块继续走强，说明资金仍在主动防御而非系统性撤离，节前可能维持窄幅震荡",
+        "如果恒生指数夜盘继续走弱（-1% 以上）且美债收益率突破 5%，说明外部流动性压力未缓解，明日成长股估值压力将放大",
+        "如果北证 50 持续放量且主板缩量，说明资金从主战场撤退到次新弹性小盘，警惕主线缺失",
+        "如果台风桦加沙 24 日广东登陆后影响减弱但 25 日（周四）盘面无明显反弹，说明节前避险已经主导情绪至节后"
+      ],
+      "data_caveats": [
+        "北向资金净买入额（tradvalnetsum）字段为 null，无法判断今日北向净买入还是净卖出",
+        "龙虎榜（DailyStockHeroDetails）盘后数据未发布",
+        "美股盘中信息（10 年期/2 年期美债收益率）来自 9-22 收盘"
+      ]
     }
   ],
   "weekly": [
@@ -5362,5 +5661,5 @@
       "generated_by": "Mavis 周报生成机器人"
     }
   ],
-  "updated_at": "2026-09-23T07:03:28"
+  "updated_at": "2026-09-23T19:08:24"
 }
