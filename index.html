@@ -2415,8 +2415,12 @@ function mergeData(data) {
       });
     }
   });
-  if (data.config) {
-    state.config = { ...state.config, ...data.config };
+  // 只合并 config 里的非关键字段，保留本地的 remoteDataUrl / autoSync
+  if (data.config && typeof data.config === 'object') {
+    const safeConfig = { ...data.config };
+    delete safeConfig.remoteDataUrl;
+    delete safeConfig.autoSync;
+    state.config = { ...state.config, ...safeConfig };
     changed = true;
   }
   return true;
@@ -2431,10 +2435,8 @@ async function syncRemote() {
   }
   toast('正在同步...', 'info');
   try {
-    // 1) 时间戳 query string 绕过 GitHub Pages CDN 边缘节点缓存
-    const sep = url.includes('?') ? '&' : '?';
-    const fetchUrl = `${url}${sep}t=${Date.now()}`;
-    const resp = await fetch(fetchUrl, { cache: 'no-store' });
+    // 1) fetch 用 no-store 让浏览器不要缓存，依赖 GitHub Pages 自己的 cache-control
+    const resp = await fetch(url, { cache: 'no-store' });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
     // 2) 校验响应完整性：用 stream reader 读够 Content-Length 字节再 parse
@@ -2461,18 +2463,32 @@ async function syncRemote() {
     try { data = JSON.parse(text); }
     catch (je) { throw new Error('JSON 解析失败：' + je.message); }
 
-    if (mergeData(data)) {
-      save(); renderAll();
-      state.config.lastSync = nowStr();
+    // 4) 校验数据有效性：morning/evening 必须是数组
+    if (!Array.isArray(data.morning) || !Array.isArray(data.evening)) {
+      throw new Error('数据格式不匹配：morning/evening 字段缺失');
+    }
+
+    // 5) 用 snapshot 模式合并（先备份旧 state，merge 失败可回滚）
+    const snapshot = JSON.parse(JSON.stringify(state));
+    try {
+      if (mergeData(data)) {
+        save(); renderAll();
+        state.config.lastSync = nowStr();
+        save();
+        document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
+        checkDataStaleness();
+        toast('同步成功', 'success');
+      } else {
+        throw new Error('mergeData 返回 false');
+      }
+    } catch (mergeErr) {
+      // 回滚
+      state = snapshot;
       save();
-      document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
-      checkDataStaleness();
-      toast('同步成功', 'success');
-    } else {
-      toast('数据格式不匹配', 'error');
+      throw mergeErr;
     }
   } catch (e) {
-    toast('同步失败: ' + e.message, 'error');
+    toast('同步失败: ' + e.message + '（保留旧版本数据）', 'error');
   }
 }
 
