@@ -997,8 +997,10 @@ body {
 </head>
 <body>
 <div class="app">
-  <div id="version-banner" style="background:#0ea5e9;color:#fff;padding:6px 16px;font-size:12px;text-align:center;font-family:monospace;">
-    Build v2026-09-29-1418 / size=240KB / 强制刷新：Ctrl+Shift+R 或隐身窗口
+  <div id="version-banner" style="background:#0ea5e9;color:#fff;padding:6px 16px;font-size:12px;text-align:center;font-family:monospace;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <span>Build v2026-10-13-1229 / size=240KB</span>
+    <span style="opacity:0.85">⚡ 同步按钮 = Pages CDN 优先 / 备用源按钮 = 绕过 CDN 直连 raw.githubusercontent.com</span>
+    <span>硬刷: Ctrl+Shift+R</span>
   </div>
   <!-- ============== HEADER ============== -->
   <header class="header">
@@ -1021,6 +1023,9 @@ body {
           <button class="btn" onclick="syncRemote()" title="从配置的远程URL同步数据">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
             同步
+          </button>
+          <button class="btn" onclick="bypassSync()" title="绕过 GitHub Pages CDN，直接从 raw.githubusercontent.com 拉取（最稳）">
+            备用源
           </button>
           <button class="btn" onclick="importJSON()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -2436,62 +2441,109 @@ async function syncRemote() {
     openSettings();
     return;
   }
-  toast('正在同步...', 'info');
+  await syncFromSources(buildSources(url), '正在同步...');
+}
+
+function buildSources(pagesUrl) {
+  const sources = [pagesUrl];
+  // 从 pages URL 提取 raw URL
+  const m = pagesUrl.match(/^https?:\/\/[^/]+\/(?:github\.io\/)?([^/]+)\/(.+)$/);
+  if (m && pagesUrl.includes('github.io')) {
+    const repoPath = m[1]; // owner/repo
+    const filePath = m[2];
+    sources.push(`https://raw.githubusercontent.com/${repoPath}/main/${filePath}`);
+    sources.push(`https://raw.githubusercontent.com/${repoPath}/master/${filePath}`);
+  }
+  return sources;
+}
+
+async function bypassSync() {
+  // 直接走 raw.githubusercontent.com（绕过 Pages CDN）
+  const pagesUrl = state.config.remoteDataUrl;
+  if (!pagesUrl) {
+    toast('请先在「设置」中配置远程数据 URL', 'info');
+    openSettings();
+    return;
+  }
+  const sources = buildSources(pagesUrl).filter(s => s.includes('raw.githubusercontent.com'));
+  if (sources.length === 0) {
+    toast('无法识别 GitHub 仓库路径', 'error');
+    return;
+  }
+  await syncFromSources(sources, '正在从 raw.githubusercontent.com 备用源拉取...');
+}
+
+async function syncFromSources(sources, hintMsg) {
+  toast(hintMsg, 'info', 3000);
+  // 2) 多源 + 指数退避重试（每个源最多 2 次）
+  const errors = [];
+  for (const src of sources) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const text = await fetchComplete(src);
+        const data = JSON.parse(text);
+        if (!Array.isArray(data.morning) || !Array.isArray(data.evening)) {
+          throw new Error('数据格式不匹配：morning/evening 字段缺失');
+        }
+        // 成功 → 走 merge 流程
+        applyMergedData(data, src);
+        return; // 成功直接返回
+      } catch (e) {
+        const wait = attempt === 1 ? 800 : 1800;
+        errors.push(`${src.split('/').pop()} (try${attempt}): ${e.message}`);
+        if (attempt < 2) await new Promise(r => setTimeout(r, wait));
+      }
+    }
+  }
+  // 全部失败
+  toast('同步失败: ' + errors.join(' | ') + '（保留旧版本数据）', 'error', 8000);
+}
+
+async function fetchComplete(url) {
+  // 强制 no-store + 不带 Accept-Encoding（避免 CDN gzip 半截）
+  const resp = await fetch(url, { cache: 'no-store', headers: { 'Accept-Encoding': 'identity' } });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const declaredLen = parseInt(resp.headers.get('content-length') || '0', 10);
+  const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
+  let text = '';
+  if (reader) {
+    const decoder = new TextDecoder('utf-8');
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    // 长度校验：declared 存在且不匹配时报警（允许 ±2 字节尾空白差异）
+    if (declaredLen && Math.abs(text.length - declaredLen) > 2) {
+      throw new Error(`响应截断 (${text.length}/${declaredLen})`);
+    }
+  } else {
+    text = await resp.text();
+  }
+  return text;
+}
+
+function applyMergedData(data, src) {
+  const snapshot = JSON.parse(JSON.stringify(state));
   try {
-    // 1) fetch 用 no-store 让浏览器不要缓存，依赖 GitHub Pages 自己的 cache-control
-    const resp = await fetch(url, { cache: 'no-store' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-    // 2) 校验响应完整性：用 stream reader 读够 Content-Length 字节再 parse
-    const declaredLen = parseInt(resp.headers.get('content-length') || '0', 10);
-    const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
-    let text = '';
-    if (reader) {
-      const decoder = new TextDecoder('utf-8');
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        text += decoder.decode(value, { stream: true });
-      }
-      text += decoder.decode();
-      if (declaredLen && text.length !== declaredLen) {
-        throw new Error(`响应截断 (${text.length}/${declaredLen})`);
-      }
-    } else {
-      text = await resp.text();
-    }
-
-    // 3) 校验 JSON 解析成功
-    let data;
-    try { data = JSON.parse(text); }
-    catch (je) { throw new Error('JSON 解析失败：' + je.message); }
-
-    // 4) 校验数据有效性：morning/evening 必须是数组
-    if (!Array.isArray(data.morning) || !Array.isArray(data.evening)) {
-      throw new Error('数据格式不匹配：morning/evening 字段缺失');
-    }
-
-    // 5) 用 snapshot 模式合并（先备份旧 state，merge 失败可回滚）
-    const snapshot = JSON.parse(JSON.stringify(state));
-    try {
-      if (mergeData(data)) {
-        save(); renderAll();
-        state.config.lastSync = nowStr();
-        save();
-        document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
-        checkDataStaleness();
-        toast('同步成功', 'success');
-      } else {
-        throw new Error('mergeData 返回 false');
-      }
-    } catch (mergeErr) {
-      // 回滚
-      state = snapshot;
+    if (mergeData(data)) {
+      save(); renderAll();
+      state.config.lastSync = nowStr();
+      // 记录同步来源（用于排查 CDN 节点问题）
+      try { state.config.lastSyncSrc = new URL(src).hostname; } catch(e){}
       save();
-      throw mergeErr;
+      document.getElementById('stat-lastSync').textContent = `上次同步: ${state.config.lastSync}`;
+      checkDataStaleness();
+      const host = (() => { try { return new URL(src).hostname; } catch(e){ return '?'; } })();
+      toast(`同步成功 (源: ${host})`, 'success');
+    } else {
+      throw new Error('mergeData 返回 false');
     }
-  } catch (e) {
-    toast('同步失败: ' + e.message + '（保留旧版本数据）', 'error');
+  } catch (mergeErr) {
+    state = snapshot;
+    save();
+    throw mergeErr;
   }
 }
 
@@ -2587,12 +2639,12 @@ function closeModal() {
 }
 
 // ============== Toast ==============
-function toast(msg, type = 'info') {
+function toast(msg, type = 'info', duration = 2500) {
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
   el.innerHTML = `<span>${escapeHtml(msg)}</span>`;
   document.getElementById('toastContainer').appendChild(el);
-  setTimeout(() => el.remove(), 2500);
+  setTimeout(() => el.remove(), duration);
 }
 
 // ============== 时钟 ==============
