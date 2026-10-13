@@ -998,8 +998,8 @@ body {
 <body>
 <div class="app">
   <div id="version-banner" style="background:#0ea5e9;color:#fff;padding:6px 16px;font-size:12px;text-align:center;font-family:monospace;display:flex;justify-content:space-between;align-items:center;gap:12px;">
-    <span>Build v2026-10-13-1229 / size=240KB</span>
-    <span style="opacity:0.85">⚡ 同步按钮 = Pages CDN 优先 / 备用源按钮 = 绕过 CDN 直连 raw.githubusercontent.com</span>
+    <span>Build v2026-10-13-1247 / size=243KB / 6 源: GitHub Pages → raw.githubusercontent → jsDelivr×3</span>
+    <span style="opacity:0.85">硬刷拿不到新版 = Service Worker 卡了，按 F12 → Application → Service Workers → Unregister</span>
     <span>硬刷: Ctrl+Shift+R</span>
   </div>
   <!-- ============== HEADER ============== -->
@@ -2446,13 +2446,17 @@ async function syncRemote() {
 
 function buildSources(pagesUrl) {
   const sources = [pagesUrl];
-  // 从 pages URL 提取 raw URL
+  // 从 pages URL 提取 repo + file
   const m = pagesUrl.match(/^https?:\/\/[^/]+\/(?:github\.io\/)?([^/]+)\/(.+)$/);
   if (m && pagesUrl.includes('github.io')) {
     const repoPath = m[1]; // owner/repo
     const filePath = m[2];
     sources.push(`https://raw.githubusercontent.com/${repoPath}/main/${filePath}`);
     sources.push(`https://raw.githubusercontent.com/${repoPath}/master/${filePath}`);
+    // jsDelivr 多镜像（国内/海外都通）
+    sources.push(`https://cdn.jsdelivr.net/gh/${repoPath}@main/${filePath}`);
+    sources.push(`https://gcore.jsdelivr.net/gh/${repoPath}@main/${filePath}`);
+    sources.push(`https://fastly.jsdelivr.net/gh/${repoPath}@main/${filePath}`);
   }
   return sources;
 }
