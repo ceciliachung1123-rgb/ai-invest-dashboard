@@ -998,9 +998,9 @@ body {
 <body>
 <div class="app">
   <div id="version-banner" style="background:#0ea5e9;color:#fff;padding:6px 16px;font-size:12px;text-align:center;font-family:monospace;display:flex;justify-content:space-between;align-items:center;gap:12px;">
-    <span>Build v2026-10-13-1247 / size=243KB / 6 源: GitHub Pages → raw.githubusercontent → jsDelivr×3</span>
-    <span style="opacity:0.85">硬刷拿不到新版 = Service Worker 卡了，按 F12 → Application → Service Workers → Unregister</span>
-    <span>硬刷: Ctrl+Shift+R</span>
+    <span>Build v2026-10-13-1300 / size=244KB / 6 源 / autoSync=ON + 后台重试×4</span>
+    <span style="opacity:0.85">硬刷拿不到新版 = SW 卡了，F12 → Application → Service Workers → Unregister</span>
+    <span class="sync-status" style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;">· 同步: 检测中</span>
   </div>
   <!-- ============== HEADER ============== -->
   <header class="header">
@@ -1246,7 +1246,7 @@ let state = {
   companies: [],
   events: [],
   archive: [],
-  config: { remoteDataUrl: '', autoSync: false }
+  config: { remoteDataUrl: '', autoSync: true, backgroundRetry: true }
 };
 
 let currentTab = 'morning';
@@ -2733,8 +2733,42 @@ if (isOldOrEmpty) {
 }
 // 配置了远程 URL 就自动同步（不论手动/自动），无需点按钮
 if (state.config.remoteDataUrl) {
+  // 启动时立即拉一次（页面刚加载 CDN 状态可能不稳）
   setTimeout(() => syncRemote(), 500);
   if (state.config.autoSync) startAutoSync();
+  // 关键修复：自动 sync 失败时启动 background retry（30s × 4 次）
+  // 解决"CDN 边缘节点切换时首次 fetch 必失败"的问题
+  setTimeout(() => ensureAutoSynced(), 3000);
+}
+
+// 兜底：定时检查 + 失败重试，确保打开页面 5 分钟内必成功 sync
+let _retryCount = 0;
+async function ensureAutoSynced() {
+  if (!state.config.remoteDataUrl) return;
+  // 检查是否已经有最近 10 分钟内成功的 sync（看 stat-lastSync）
+  const lastSyncEl = document.getElementById('stat-lastSync');
+  const lastSyncText = lastSyncEl ? lastSyncEl.textContent : '';
+  // 简化：看 state.config.lastSync 是否存在 + 是否今天
+  if (state.config.lastSync && state.config.lastSync.startsWith(todayStr())) {
+    return; // 今天已经成功 sync 过，不需要重试
+  }
+  if (_retryCount >= 4) {
+    console.warn('[dashboard] 4 次后台重试均失败，停止重试。请手动点「同步」或「备用源」');
+    updateSyncStatus('失败');
+    return;
+  }
+  _retryCount++;
+  updateSyncStatus(`重试中 (${_retryCount}/4)`);
+  await syncFromSources(buildSources(state.config.remoteDataUrl), `后台重试 ${_retryCount}/4 ...`);
+  // 不管成功失败，再排下一次（如果 30s 后还是没成功）
+  setTimeout(() => ensureAutoSynced(), 30000);
+}
+
+function updateSyncStatus(status) {
+  const el = document.getElementById('version-banner');
+  if (!el) return;
+  const sub = el.querySelector('.sync-status');
+  if (sub) sub.textContent = `· 同步: ${status}`;
 }
 </script>
 </body>
