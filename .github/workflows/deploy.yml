@@ -1,12 +1,19 @@
 name: 部署 AI 投资研究看板
 
 on:
-  # 监听 dashboard-data.json / index.html 变化
+  # 监听看板页面与数据文件变化
+  # 注意：deploy.py 更新的是 dashboard-data-v3.json 与 data/dashboard-data.json，
+  # 只监听根目录 dashboard-data.json 会导致数据更新后 Pages 不重建。
   push:
     branches: [ main ]
     paths:
       - 'index.html'
       - 'dashboard-data.json'
+      - 'dashboard-data-v3.json'
+      - 'data/dashboard-data.json'
+      - 'data/evening-content/**'
+      - 'data/morning-content/**'
+      - 'data/weekly-content/**'
   # 允许手动触发
   workflow_dispatch:
     inputs:
