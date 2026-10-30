@@ -15,6 +15,7 @@ AI 投资看板 - 部署脚本（2026-10-23 验证版）
 5. 只 update 已有文件，PUT 带 sha（create 新文件名会触发 Page build failed）
 """
 import base64
+import copy
 import json
 import os
 import sys
@@ -171,33 +172,43 @@ def compact_oldest(item):
 
 def fit_size(dd, content_dir):
     """把 dd 压到 ≤ SIZE_LIMIT。优先级：外置 > 精简最老 > 减条目（保底 3+3+2）。
-    返回 (最终数据, 说明文本, 需要上传的 md 文件列表)"""
+    返回 (最终数据, 说明文本, 需要上传的 md 文件列表)
+
+    ⚠️ 外置只对「当前档位保留的条目」做。若对全量 dd 做，会生成 60+ 个
+       永远用不上的 md 文件，每次部署多打 60 次 PUT，纯浪费。"""
     pending_md = []
-
-    # Step 1: 外置所有条目里的长 markdown
-    for key, prefix in (("morning", "morning-content"), ("evening", "evening-content"),
-                        ("weekly", "weekly-content")):
-        for it in dd.get(key, []):
-            if externalize_longtext(it, content_dir, prefix):
-                pending_md.append(f"data/{prefix}/{it.get('id', 'x').replace('/', '_')}.md")
-
-    # Step 2: 逐档收紧，每次先精简最老条目
     for m_lim, e_lim, w_lim in [(6, 6, 3), (5, 5, 2), (4, 4, 2), (3, 3, 2)]:
         cand = slim(dd, m_lim, e_lim, w_lim)
+
+        # Step 1: 外置当前保留集里的长 markdown
+        local_md = []
+        for key, prefix in (("morning", "morning-content"), ("evening", "evening-content"),
+                            ("weekly", "weekly-content")):
+            for it in cand.get(key, []):
+                if externalize_longtext(it, content_dir, prefix):
+                    local_md.append(f"data/{prefix}/{it.get('id', 'x').replace('/', '_')}.md")
+
         size = write_compact(cand, "/tmp/_fit.json")
         if size <= SIZE_LIMIT:
-            return cand, f"{m_lim}+{e_lim}+{w_lim} (无需精简)", pending_md
-        # 超标 → 精简最老条目后重试
+            return cand, f"{m_lim}+{e_lim}+{w_lim}", local_md
+
+        # Step 2: 超标 → 精简最老条目后重试（正文已在 md 里，结构化字段是重复的）
         for key in ("morning", "evening"):
             arr = cand.get(key, [])
             if arr:
                 arr[0] = compact_oldest(arr[0])
         size2 = write_compact(cand, "/tmp/_fit.json")
         if size2 <= SIZE_LIMIT:
-            return cand, f"{m_lim}+{e_lim}+{w_lim} (已精简最老条目)", pending_md
+            return cand, f"{m_lim}+{e_lim}+{w_lim} (已精简最老条目)", local_md
 
     # Step 3: 硬保底 3+3+2，再不行就再精简一次最老的两个
     cand = slim(dd, 3, 3, 2)
+    local_md = []
+    for key, prefix in (("morning", "morning-content"), ("evening", "evening-content"),
+                        ("weekly", "weekly-content")):
+        for it in cand.get(key, []):
+            if externalize_longtext(it, content_dir, prefix):
+                local_md.append(f"data/{prefix}/{it.get('id', 'x').replace('/', '_')}.md")
     for key in ("morning", "evening"):
         arr = cand.get(key, [])
         for i in range(min(2, len(arr))):
@@ -205,7 +216,7 @@ def fit_size(dd, content_dir):
     size = write_compact(cand, "/tmp/_fit.json")
     if size > SIZE_LIMIT:
         print(f"[fit] ERROR 精简后仍 {size} > {SIZE_LIMIT}，请人工检查")
-    return cand, "3+3+2 (硬保底，最老两条已精简)", pending_md
+    return cand, "3+3+2 (硬保底，最老两条已精简)", local_md
 
 
 
@@ -286,7 +297,9 @@ def main():
     archive = load_archive()
     for k in ("morning", "evening", "weekly"):
         m = {x.get("id"): x for x in archive.get(k, []) if x.get("id")}
-        for x in d.get(k, []):
+        # deep copy：后面的 fit_size 会外置/截断 d 里的条目，
+        # archive 必须保存**未截断的完整版**
+        for x in copy.deepcopy(d.get(k, [])):
             if x.get("id"):
                 m[x["id"]] = x
         archive[k] = sorted(m.values(), key=lambda x: x.get("date", ""))
