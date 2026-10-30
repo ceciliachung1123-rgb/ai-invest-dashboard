@@ -61,6 +61,19 @@ def write_compact(obj, path):
     return p.stat().st_size
 
 
+def load_archive():
+    """拉取全量历史归档 data/archive.json（不存在则返回空骨架）"""
+    content, _ = pull_remote("data/archive.json")
+    if content is None:
+        print("[archive] 远端 archive.json 不存在，将新建")
+        return {"morning": [], "evening": [], "weekly": []}
+    try:
+        return json.loads(content.decode("utf-8"))
+    except Exception as e:
+        print(f"[archive] WARN 解析失败({e})，将新建")
+        return {"morning": [], "evening": [], "weekly": []}
+
+
 def get_remote_sha(rel):
     req = urllib.request.Request(f"{API}/contents/{rel}", headers=HDRS)
     try:
@@ -267,6 +280,21 @@ def main():
     d.pop("_force_deploy", None)
     d.pop("_deploy_marker", None)
 
+    # 2.5) 更新全量历史归档 data/archive.json
+    # 线上 v3.json 只保留最近几条，历史都在 git。archive.json 是完整历史快照，
+    # 周报必须读它（而不是被裁剪的 v3.json），否则会读到残缺数据。
+    archive = load_archive()
+    for k in ("morning", "evening", "weekly"):
+        m = {x.get("id"): x for x in archive.get(k, []) if x.get("id")}
+        for x in d.get(k, []):
+            if x.get("id"):
+                m[x["id"]] = x
+        archive[k] = sorted(m.values(), key=lambda x: x.get("date", ""))
+    archive["updated_at"] = d["updated_at"]
+    arch_size = write_compact(archive, "data/archive.json")
+    print(f"[archive] 全量历史 m={len(archive['morning'])} e={len(archive['evening'])} "
+          f"w={len(archive['weekly'])} = {arch_size} bytes")
+
     # 3) fit_size：优先外置/精简内容，最后才减条目（硬保底 3+3+2）
     content_dir = BASE / "data"
     d, fit_desc, pending_md = fit_size(d, content_dir)
@@ -285,6 +313,12 @@ def main():
         src = BASE / rel_path
         if src.exists():
             put_file(rel_path, src.read_bytes(), f"chore: 外置正文 {rel_path}")
+
+    # 3.6) 上传全量历史归档（周报读它拿完整历史）
+    arch_local = BASE / "data" / "archive.json"
+    if arch_local.exists() and get_remote_sha("data/archive.json"):
+        put_file("data/archive.json", arch_local.read_bytes(),
+                 f"chore: 更新全量历史归档 ({rtype} {date})")
 
     # 4) PUT 上传（只 update 已有文件，带 sha）
     for rel in DEPLOY_FILES:
