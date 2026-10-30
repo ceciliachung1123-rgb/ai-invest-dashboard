@@ -35,9 +35,13 @@ SIZE_LIMIT = 85000  # CDN 截断阈值 100KB，留 15% 安全余量
 DEPLOY_FILES = ["dashboard-data-v3.json", "data/dashboard-data.json"]
 
 
-def pull_remote(rel):
-    """从 GitHub 拉远端文件内容（返回 bytes），不存在则返回 None"""
-    req = urllib.request.Request(f"{API}/contents/{rel}", headers=HDRS)
+def pull_remote(rel, ref=None):
+    """从 GitHub 拉远端文件内容（返回 bytes），不存在则返回 None
+    ref 可指定 commit sha / branch / tag，从历史版本拉基线"""
+    url = f"{API}/contents/{rel}"
+    if ref:
+        url += f"?ref={ref}"
+    req = urllib.request.Request(url, headers=HDRS)
     try:
         with urllib.request.urlopen(req) as resp:
             meta = json.loads(resp.read())
@@ -57,6 +61,40 @@ def write_compact(obj, path):
     return p.stat().st_size
 
 
+def get_remote_sha(rel):
+    req = urllib.request.Request(f"{API}/contents/{rel}", headers=HDRS)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())["sha"]
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
+def put_file(rel, data_bytes, message):
+    """PUT 上传一个文件（update 优先，带 sha；不存在则 create）"""
+    api_url = f"{API}/contents/{rel}"
+    req = urllib.request.Request(api_url, headers=HDRS)
+    sha = None
+    try:
+        with urllib.request.urlopen(req) as resp:
+            sha = json.loads(resp.read())["sha"]
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
+    body = {"message": message, "content": base64.b64encode(data_bytes).decode()}
+    if sha:
+        body["sha"] = sha
+    put_req = urllib.request.Request(
+        api_url, data=json.dumps(body).encode("utf-8"),
+        headers={**HDRS, "Content-Type": "application/json"}, method="PUT")
+    with urllib.request.urlopen(put_req) as resp:
+        r = json.loads(resp.read())
+        print(f"  PUT {rel}: {r['commit']['sha'][:10]} ({r['content']['size']} bytes)")
+        return r["commit"]["sha"]
+
+
 def slim(dd, m_lim, e_lim, w_lim):
     """保留最近 N 条（d 已按 date 升序，[-N:] = 最近 N 条）"""
     out = dict(dd)
@@ -66,17 +104,127 @@ def slim(dd, m_lim, e_lim, w_lim):
     return out
 
 
+# ============ 🚨 2026-10-30 事故修复：先压内容，再删条目 ============
+# 原 bug：slim 用 [-N:] 取最近 N 条，每降一档就静默丢掉最老条目。
+# 10-30 晚报实测：3+3+2 = 85093（超 93 bytes）→ 继续降档到 2+2+2
+#              → 静默删除 morning-2026-10-28 与 evening-2026-10-27。
+# 修复原则：
+#   1) 优先把长文本字段外置到 md 文件（体积换历史）
+#   2) 再精简最老条目的冗余结构化字段（正文已在 md 里，字段是重复的）
+#   3) 最后才考虑减条目数，且减到 3+3+2 为硬保底，不再往下掉
+# ======================================================================
+
+KEEP_FIELDS = {
+    "id", "date", "type", "title", "content_md_file", "content_file",
+    "sentiment", "sentiment_basis", "cycle_phase", "baseDate", "base_date",
+    "publishTime", "updated_at", "week_start", "week_end", "weekStart", "weekEnd",
+}
+
+
+def externalize_longtext(item, content_dir, prefix):
+    """把超长的 markdown 文本字段外置到 md 文件，只在 v3 里留引用 + 摘要"""
+    for k in ("summary_markdown", "content_md", "content"):
+        v = item.get(k)
+        if isinstance(v, str) and len(v) > 1200 and not item.get("content_md_file"):
+            fname = f"{prefix}/{item.get('id', 'x').replace('/', '_')}.md"
+            target = content_dir / fname
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(v, encoding="utf-8")
+            item["content_md_file"] = fname
+            item[k] = v[:300] + "\n\n（正文已外置，见 content_md_file）"
+            return True
+    return False
+
+
+def compact_oldest(item):
+    """精简最老条目：保留核心字段，长字符串截断，长数组/字典折叠。
+    正文已在 content_md_file 里，结构化字段是重复信息，可以安全精简。"""
+    out = {}
+    for k, v in item.items():
+        if k in KEEP_FIELDS:
+            out[k] = v
+        elif isinstance(v, str) and len(v) > 200:
+            out[k] = v[:200] + "…"
+        elif isinstance(v, (int, float, bool)) or v is None:
+            out[k] = v
+        elif isinstance(v, list) and len(json.dumps(v, ensure_ascii=False)) > 300:
+            out[k] = f"（{len(v)} 项，详细内容见正文 md）"
+        elif isinstance(v, dict) and len(json.dumps(v, ensure_ascii=False)) > 300:
+            out[k] = {kk: v[kk] for kk in list(v)[:3]}
+        else:
+            out[k] = v
+    return out
+
+
+def fit_size(dd, content_dir):
+    """把 dd 压到 ≤ SIZE_LIMIT。优先级：外置 > 精简最老 > 减条目（保底 3+3+2）。
+    返回 (最终数据, 说明文本, 需要上传的 md 文件列表)"""
+    pending_md = []
+
+    # Step 1: 外置所有条目里的长 markdown
+    for key, prefix in (("morning", "morning-content"), ("evening", "evening-content"),
+                        ("weekly", "weekly-content")):
+        for it in dd.get(key, []):
+            if externalize_longtext(it, content_dir, prefix):
+                pending_md.append(f"data/{prefix}/{it.get('id', 'x').replace('/', '_')}.md")
+
+    # Step 2: 逐档收紧，每次先精简最老条目
+    for m_lim, e_lim, w_lim in [(6, 6, 3), (5, 5, 2), (4, 4, 2), (3, 3, 2)]:
+        cand = slim(dd, m_lim, e_lim, w_lim)
+        size = write_compact(cand, "/tmp/_fit.json")
+        if size <= SIZE_LIMIT:
+            return cand, f"{m_lim}+{e_lim}+{w_lim} (无需精简)", pending_md
+        # 超标 → 精简最老条目后重试
+        for key in ("morning", "evening"):
+            arr = cand.get(key, [])
+            if arr:
+                arr[0] = compact_oldest(arr[0])
+        size2 = write_compact(cand, "/tmp/_fit.json")
+        if size2 <= SIZE_LIMIT:
+            return cand, f"{m_lim}+{e_lim}+{w_lim} (已精简最老条目)", pending_md
+
+    # Step 3: 硬保底 3+3+2，再不行就再精简一次最老的两个
+    cand = slim(dd, 3, 3, 2)
+    for key in ("morning", "evening"):
+        arr = cand.get(key, [])
+        for i in range(min(2, len(arr))):
+            arr[i] = compact_oldest(arr[i])
+    size = write_compact(cand, "/tmp/_fit.json")
+    if size > SIZE_LIMIT:
+        print(f"[fit] ERROR 精简后仍 {size} > {SIZE_LIMIT}，请人工检查")
+    return cand, "3+3+2 (硬保底，最老两条已精简)", pending_md
+
+
+
 def main():
-    rtype = sys.argv[1] if len(sys.argv) > 1 else "morning"
-    date = sys.argv[2] if len(sys.argv) > 2 else datetime.now().strftime("%Y-%m-%d")
+    args = sys.argv[1:]
+    rtype = "morning"
+    date = datetime.now().strftime("%Y-%m-%d")
+    baseline_ref = None
+    for i, a in enumerate(args):
+        if a == "--baseline-ref" and i + 1 < len(args):
+            baseline_ref = args[i + 1]
+        elif a.startswith("--baseline-ref="):
+            baseline_ref = a.split("=", 1)[1]
+        elif a.startswith("--type="):
+            rtype = a.split("=", 1)[1]
+        elif a.startswith("--date="):
+            date = a.split("=", 1)[1]
+        elif not a.startswith("--") and "." not in a:
+            if rtype == "morning" and date == datetime.now().strftime("%Y-%m-%d"):
+                rtype = a
+            else:
+                date = a
 
     print(f"=== 部署 {rtype} {date} ===")
+    if baseline_ref:
+        print(f"[baseline] 从指定 ref 拉基线: {baseline_ref}")
 
     # 1) 拉远端基线
     remote_bytes = {}
     shas = {}
     for rel in DEPLOY_FILES:
-        content, sha = pull_remote(rel)
+        content, sha = pull_remote(rel, ref=baseline_ref)
         if content is None:
             print(f"WARN: {rel} 远端不存在，将用空对象初始化")
             remote_bytes[rel] = b'{"morning":[],"evening":[],"weekly":[]}'
@@ -119,57 +267,33 @@ def main():
     d.pop("_force_deploy", None)
     d.pop("_deploy_marker", None)
 
-    # 3) slim 自动收紧到 ≤ SIZE_LIMIT
-    chosen = None
-    for m_lim, e_lim, w_lim in [(6, 6, 3), (5, 5, 2), (4, 4, 2), (3, 3, 2), (2, 2, 2)]:
-        cand = slim(d, m_lim, e_lim, w_lim)
-        size = write_compact(cand, "dashboard-data-v3.json")
-        print(f"[slim] {m_lim}+{e_lim}+{w_lim} -> {size} bytes")
-        if size <= SIZE_LIMIT:
-            d = cand
-            chosen = (m_lim, e_lim, w_lim)
-            break
-    else:
-        d = cand
-        chosen = (2, 2, 2)
-        print(f"[slim] WARN 最小组合仍 {size} > {SIZE_LIMIT}，强制使用")
-
-    write_compact(d, "data/dashboard-data.json")
+    # 3) fit_size：优先外置/精简内容，最后才减条目（硬保底 3+3+2）
+    content_dir = BASE / "data"
+    d, fit_desc, pending_md = fit_size(d, content_dir)
     final_size = write_compact(d, "dashboard-data-v3.json")
-    print(f"[slim] final: {chosen[0]}+{chosen[1]}+{chosen[2]} = {final_size} bytes")
+    write_compact(d, "data/dashboard-data.json")
+    print(f"[fit] {fit_desc} = {final_size} bytes {'✅' if final_size <= SIZE_LIMIT else '❌ 超阈值'}")
     print(f"[counts] m={len(d['morning'])} e={len(d['evening'])} w={len(d['weekly'])}")
+    print(f"[history] morning={[x.get('id') for x in d['morning']]}")
+    print(f"[history] evening={[x.get('id') for x in d['evening']]}")
+    print(f"[history] weekly={[x.get('id') for x in d['weekly']]}")
     if final_size > SIZE_LIMIT:
         print(f"[ERROR] 最终体积 {final_size} > {SIZE_LIMIT}，CDN 可能截断！")
 
+    # 3.5) 上传外置的 md 文件（体积换历史的关键）
+    for rel_path in pending_md:
+        src = BASE / rel_path
+        if src.exists():
+            put_file(rel_path, src.read_bytes(), f"chore: 外置正文 {rel_path}")
+
     # 4) PUT 上传（只 update 已有文件，带 sha）
     for rel in DEPLOY_FILES:
-        api_url = f"{API}/contents/{rel}"
-        req = urllib.request.Request(api_url, headers=HDRS)
-        sha = None
-        try:
-            with urllib.request.urlopen(req) as resp:
-                sha = json.loads(resp.read())["sha"]
-        except urllib.error.HTTPError as e:
-            if e.code != 404:
-                raise
-        if sha is None:
+        if get_remote_sha(rel) is None:
             print(f"SKIP {rel}: 远端不存在（禁止 create 新文件）")
             continue
         local = BASE / rel
-        body = {
-            "message": f"feat: add {rtype} {date} (m={len(d['morning'])} e={len(d['evening'])} w={len(d['weekly'])})",
-            "content": base64.b64encode(local.read_bytes()).decode(),
-            "sha": sha,
-        }
-        put_req = urllib.request.Request(
-            api_url,
-            data=json.dumps(body).encode("utf-8"),
-            headers={**HDRS, "Content-Type": "application/json"},
-            method="PUT",
-        )
-        with urllib.request.urlopen(put_req) as resp:
-            r = json.loads(resp.read())
-            print(f"PUT {rel}: {r['commit']['sha'][:10]} ({r['content']['size']} bytes)")
+        put_file(rel, local.read_bytes(),
+                 f"feat: add {rtype} {date} (m={len(d['morning'])} e={len(d['evening'])} w={len(d['weekly'])})")
 
     print("=== 完成 ===")
     print("验证：curl -sI https://ceciliachung1123-rgb.github.io/ai-invest-dashboard/dashboard-data-v3.json")
