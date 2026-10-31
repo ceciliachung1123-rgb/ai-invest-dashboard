@@ -18,6 +18,7 @@ import base64
 import copy
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -220,25 +221,55 @@ def fit_size(dd, content_dir):
 
 
 
-def main():
-    args = sys.argv[1:]
+VALID_TYPES = ("morning", "evening", "weekly")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def parse_args(argv):
+    """解析命令行参数。
+    支持：deploy.py morning 2026-11-02
+          deploy.py 2026-11-02
+          deploy.py --type=evening --date=2026-11-02
+          deploy.py morning 2026-11-02 --baseline-ref <sha>
+
+    ⚠️ 2026-10-31 彩排发现的 bug：旧逻辑靠「rtype 是否还是默认值」猜参数角色，
+       会把 `morning` 当日期、把 `2026-11-02` 当类型，导致找错文件直接退出。
+       现在改为按值判定：类型 ∈ {morning,evening,weekly}，日期匹配 YYYY-MM-DD。"""
     rtype = "morning"
     date = datetime.now().strftime("%Y-%m-%d")
     baseline_ref = None
-    for i, a in enumerate(args):
-        if a == "--baseline-ref" and i + 1 < len(args):
-            baseline_ref = args[i + 1]
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--baseline-ref" and i + 1 < len(argv):
+            baseline_ref = argv[i + 1]
+            i += 1
         elif a.startswith("--baseline-ref="):
             baseline_ref = a.split("=", 1)[1]
         elif a.startswith("--type="):
-            rtype = a.split("=", 1)[1]
-        elif a.startswith("--date="):
-            date = a.split("=", 1)[1]
-        elif not a.startswith("--") and "." not in a:
-            if rtype == "morning" and date == datetime.now().strftime("%Y-%m-%d"):
-                rtype = a
+            v = a.split("=", 1)[1]
+            if v in VALID_TYPES:
+                rtype = v
             else:
-                date = a
+                print(f"WARN: 未知类型 {v}，忽略（可选 {VALID_TYPES}）")
+        elif a.startswith("--date="):
+            v = a.split("=", 1)[1]
+            if DATE_RE.match(v):
+                date = v
+            else:
+                print(f"WARN: 日期格式非法 {v}，应为 YYYY-MM-DD，忽略")
+        elif a in VALID_TYPES:
+            rtype = a
+        elif DATE_RE.match(a):
+            date = a
+        else:
+            print(f"WARN: 无法识别的参数 {a}，忽略")
+        i += 1
+    return rtype, date, baseline_ref
+
+
+def main():
+    rtype, date, baseline_ref = parse_args(sys.argv[1:])
 
     print(f"=== 部署 {rtype} {date} ===")
     if baseline_ref:
