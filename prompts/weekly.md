@@ -12,14 +12,17 @@
 线上 `dashboard-data-v3.json` 只保留最近 3-6 条（体积控制），**读它会拿到残缺的上周数据**（例如 10-26 的早晚报已被裁掉）。
 
 正确数据源（按优先级）：
-1. `https://raw.githubusercontent.com/ceciliachung1123-rgb/ai-invest-dashboard/main/data/archive.json`
-   —— 全量历史归档（113+ 条报告），deploy.py 每次部署会自动更新
-2. 兜底：GitHub API `contents/data/archive.json`
+1. GitHub API `contents/data/archive.json` —— 全量历史归档（113+ 条），deploy.py 每次部署会自动更新
+2. 兜底：raw `https://raw.githubusercontent.com/.../main/data/archive.json`
 3. 再兜底：扫 git 历史 `contents/dashboard-data-v3.json?ref=<sha>` 找含目标 id 的 commit
 
+🚨 **用 GitHub API 拉，不要用 raw**（11-01 实测 raw 连续 10 次全失败、0 字节）：
+
 ```bash
-curl -sL -o /tmp/archive.json https://raw.githubusercontent.com/ceciliachung1123-rgb/ai-invest-dashboard/main/data/archive.json
-python3 -c "
+curl -sfL --max-time 60 -H "Authorization: Bearer ${{GITHUB_TOKEN}}" -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json \
+&& python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))" \
+&& python3 -c "
 import json; a=json.load(open('/tmp/archive.json'))
 for k in ('morning','evening'):
     for it in a.get(k,[]):
@@ -76,12 +79,22 @@ for k in ('morning','evening'):
 若正文较长，可把 markdown 单独存到 `/workspace/ai-investment-dashboard/data/weekly-content/weekly-YYYY-MM-DD.md`，JSON 里用 content_md_file 引用（省 4KB，对 CDN 体积很关键）。
 
 ## 2. 拉部署脚本并执行
+🚨 **必须用 GitHub API 拉，不要用 raw.githubusercontent.com**（11-01 实测 raw 连续 10 次全部失败、返回 0 字节；api.github.com 10/10 成功、0.29s）
+
 ```bash
-cd /workspace/ai-investment-dashboard
-mkdir -p scripts
-curl -sL -o scripts/deploy.py https://raw.githubusercontent.com/ceciliachung1123-rgb/ai-invest-dashboard/main/scripts/deploy.py
+cd /workspace/ai-investment-dashboard && mkdir -p scripts
+for i in 1 2 3; do
+  curl -sfL --max-time 30 -H "Authorization: Bearer ${{GITHUB_TOKEN}}" -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/scripts/deploy.py" -o /tmp/deploy_api.json \
+  && python3 -c "import base64,json;m=json.load(open('/tmp/deploy_api.json'));open('scripts/deploy.py','wb').write(base64.b64decode(m['content']))" \
+  && python3 -c "import ast;ast.parse(open('scripts/deploy.py').read())" && echo "脚本就绪" && break
+  echo "拉取/校验失败，重试 $i"; sleep 5
+done
 python3 scripts/deploy.py weekly YYYY-MM-DD
 ```
+
+**❌ 若脚本最终仍不可用：绝不自己重写部署逻辑**（会丢掉 fit_size 安全规则、archive 归档维护、--baseline-ref 恢复能力，可能重演「静默删历史」事故）。
+改为：① 再重试几轮 ② 直接用 GitHub API `contents/scripts/deploy.py` 取源码到内存执行 ③ 仍失败就 notify root 交由 root 处理，**不要硬部署**。
 把 YYYY-MM-DD 替换为实际日期（周结束日）。
 
 脚本已内置（2026-10-23 实测通过）：
@@ -96,9 +109,9 @@ python3 scripts/deploy.py weekly YYYY-MM-DD
 - compact 序列化（separators=(',',':')）
 - 只 update 已有文件，PUT 带 sha
 
-**如果脚本拉不到**：自己写等价逻辑，但必须保证：
-① 从远端拉基线（绝不读 sandbox 本地）② compact 序列化（separators=(',',':')，禁 indent=2）
-③ size ≤ 85000，且**超标时优先外置/精简内容，绝不靠删历史** ④ PUT 带 sha ⑤ 部署后核对 [history] 列表
+**如果脚本确实无法获取**：❌ **不要自己重写等价逻辑**（旧版这条兜底会丢掉 fit_size 安全规则和 archive 维护，10-30 事故就是这么重演的）。
+正确做法：① 再重试几轮拉取 ② 用 GitHub API `contents/scripts/deploy.py` 直接取源码在内存里 exec ③ 仍失败则 notify root 交由 root 处理。
+只有 root 明确指示时，才允许手写等价逻辑，且必须保证：① 从远端拉基线（绝不读 sandbox 本地）② compact 序列化（separators=(',',':')，禁 indent=2）③ size ≤ 85000 且超标时优先外置/精简内容、绝不靠删历史 ④ PUT 带 sha ⑤ 部署后核对 [history] 列表 ⑥ 更新 data/archive.json
 
 ## 3. 验证（重要，别重复 PUT）
 - **最终 size 必须 ≤ 85000**，超了要处理
