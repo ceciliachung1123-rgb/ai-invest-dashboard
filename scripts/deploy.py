@@ -238,7 +238,9 @@ def fit_size(dd, content_dir):
                     created.append(f"data/{fname}")
         return created, dang
 
-    for m_lim, e_lim, w_lim in [(6, 6, 3), (5, 5, 2), (4, 4, 2), (3, 3, 2)]:
+    # 档位：weekly 一周才一条，丢一条 = 丢一周，且条目很便宜（正文已外置，约 1KB/条）
+    # → weekly 档位给得比日报宽松
+    for m_lim, e_lim, w_lim in [(6, 6, 6), (5, 5, 5), (5, 5, 4), (4, 4, 3), (3, 3, 2)]:
         cand = slim(dd, m_lim, e_lim, w_lim)
 
         # Step 1: 外置当前保留集里的长 markdown（并自愈悬空引用）
@@ -246,18 +248,23 @@ def fit_size(dd, content_dir):
         pending_md = local_md
         dangling = dang
 
-        size = write_compact(cand, "/tmp/_fit.json")
-        if size <= SIZE_LIMIT:
-            return cand, f"{m_lim}+{e_lim}+{w_lim}", pending_md, dangling
-
-        # Step 2: 超标 → 精简最老条目后重试（正文已在 md 里，结构化字段是重复的）
-        for key in ("morning", "evening"):
-            arr = cand.get(key, [])
-            if arr:
-                arr[0] = compact_oldest(arr[0])
-        size2 = write_compact(cand, "/tmp/_fit.json")
-        if size2 <= SIZE_LIMIT:
-            return cand, f"{m_lim}+{e_lim}+{w_lim} (已精简最老条目)", pending_md, dangling
+        # Step 2: 🚨 累积精简 —— 从最老开始逐条精简，每一步都测体积，达标即停。
+        #   ⚠️ 2026-11-02 事故：旧逻辑「每档只精简 1 条，不够就降档」，
+        #      周报正文大 → 6+6+3 放不下 → 一路降到 3+3+2 →
+        #      静默丢掉 morning-2026-10-28 / evening-2026-10-27 / weekly-2026-10-16。
+        #      现在先把最老的几条逐条精简到够用为止，**尽量不降档**。
+        #      代价：被精简条目的结构化字段变简略（正文仍在 md 里，用户看得到完整版）。
+        max_trim = max(len(cand.get("morning", [])), len(cand.get("evening", [])))
+        for step in range(0, max_trim + 1):
+            if step > 0:
+                for key in ("morning", "evening"):
+                    arr = cand.get(key, [])
+                    if step - 1 < len(arr):
+                        arr[step - 1] = compact_oldest(arr[step - 1])
+            size = write_compact(cand, "/tmp/_fit.json")
+            if size <= SIZE_LIMIT:
+                trim_note = f"（已精简最老 {step} 条）" if step else "（无需精简）"
+                return cand, f"{m_lim}+{e_lim}+{w_lim} {trim_note}", pending_md, dangling
 
     # Step 3: 硬保底 3+3+2，再不行就再精简一次最老的两个
     cand = slim(dd, 3, 3, 2)
@@ -393,7 +400,10 @@ def main():
 
     # 3) fit_size：优先外置/精简内容，最后才减条目（硬保底 3+3+2）
     content_dir = BASE / "data"
+    ids_before = {x.get("id") for k in ("morning", "evening", "weekly") for x in d.get(k, []) if x.get("id")}
     d, fit_desc, pending_md, dangling = fit_size(d, content_dir)
+    ids_after = {x.get("id") for k in ("morning", "evening", "weekly") for x in d.get(k, []) if x.get("id")}
+    dropped = sorted(ids_before - ids_after)
     final_size = write_compact(d, "dashboard-data-v3.json")
     write_compact(d, "data/dashboard-data.json")
     print(f"[fit] {fit_desc} = {final_size} bytes {'✅' if final_size <= SIZE_LIMIT else '❌ 超阈值'}")
@@ -401,6 +411,11 @@ def main():
     print(f"[history] morning={[x.get('id') for x in d['morning']]}")
     print(f"[history] evening={[x.get('id') for x in d['evening']]}")
     print(f"[history] weekly={[x.get('id') for x in d['weekly']]}")
+    if dropped:
+        print(f"[fit] ⚠️ 因体积限制裁掉 {len(dropped)} 条：{dropped}")
+        print(f"[fit]    （完整历史仍在 data/archive.json，可用 archive 重建恢复）")
+    else:
+        print("[fit] ✅ 无条目被裁掉")
     if final_size > SIZE_LIMIT:
         print(f"[ERROR] 最终体积 {final_size} > {SIZE_LIMIT}，CDN 可能截断！")
 
