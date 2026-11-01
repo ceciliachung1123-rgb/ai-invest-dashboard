@@ -137,18 +137,57 @@ KEEP_FIELDS = {
 
 
 def externalize_longtext(item, content_dir, prefix):
-    """把超长的 markdown 文本字段外置到 md 文件，只在 v3 里留引用 + 摘要"""
+    """把超长的 markdown 文本字段外置到 md 文件，只在 v3 里留引用 + 摘要。
+
+    返回 (状态, 相对路径) 或 None：
+      ("created",   fname)  新建 md 并写入 content_md_file
+      ("recreated", fname)  条目已有 content_md_file 但远端文件缺失 → 用条目正文重建（自愈）
+      ("dangling",  fname)  条目已有 content_md_file、远端缺失、且条目里没有正文可重建 → 悬空
+      None                 无需处理
+
+    ⚠️ 2026-11-02 事故：旧逻辑条件含 `not item.get("content_md_file")`，
+    子会话手填了 content_md_file → 函数直接 return False → **md 文件从未生成、从未 PUT**
+    → v3.json 里有引用但 git 上没文件 → 看板拉正文 404。
+    修复：不再盲信 content_md_file，改为**校验远端文件是否真的存在**，
+    缺失就用条目正文重建（幂等自愈）。"""
+    body_key = None
     for k in ("summary_markdown", "content_md", "content"):
         v = item.get(k)
-        if isinstance(v, str) and len(v) > 1200 and not item.get("content_md_file"):
-            fname = f"{prefix}/{item.get('id', 'x').replace('/', '_')}.md"
-            target = content_dir / fname
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(v, encoding="utf-8")
-            item["content_md_file"] = fname
-            item[k] = v[:300] + "\n\n（正文已外置，见 content_md_file）"
-            return True
-    return False
+        if isinstance(v, str) and len(v) > 1200:
+            body_key = k
+            break
+
+    existing_ref = item.get("content_md_file")
+    if not existing_ref:
+        if not body_key:
+            return None
+        fname = f"{prefix}/{item.get('id', 'x').replace('/', '_')}.md"
+        target = content_dir / fname
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(item[body_key], encoding="utf-8")
+        item["content_md_file"] = fname
+        item[body_key] = item[body_key][:300] + "\n\n（正文已外置，见 content_md_file）"
+        return ("created", fname)
+
+    # 条目已填 content_md_file → 三种情况
+    #   a) 远端已有 → 什么都不用做
+    #   b) 远端没有、**本地 content_dir 里已有该文件** → 上传它（最常见：子会话已 Write 了 md 文件）
+    #   c) 远端没有、本地也没有 → 条目里有长正文则重建，否则报 dangling
+    if get_remote_sha(f"data/{existing_ref}") is not None:
+        return None  # 远端已有，正常
+
+    local_target = content_dir / existing_ref
+    if local_target.exists():
+        # 情形 b：本地有 md 文件但远端没有 → 直接上传（不截断条目正文）
+        return ("local", existing_ref)
+
+    if body_key:
+        # 情形 c-1：自愈：用条目正文重建
+        local_target.parent.mkdir(parents=True, exist_ok=True)
+        local_target.write_text(item[body_key], encoding="utf-8")
+        item[body_key] = item[body_key][:300] + "\n\n（正文已外置，见 content_md_file）"
+        return ("recreated", existing_ref)
+    return ("dangling", existing_ref)
 
 
 def compact_oldest(item):
@@ -173,25 +212,43 @@ def compact_oldest(item):
 
 def fit_size(dd, content_dir):
     """把 dd 压到 ≤ SIZE_LIMIT。优先级：外置 > 精简最老 > 减条目（保底 3+3+2）。
-    返回 (最终数据, 说明文本, 需要上传的 md 文件列表)
+    返回 (最终数据, 说明文本, 需要上传的 md 文件列表, 悬空引用列表)
 
     ⚠️ 外置只对「当前档位保留的条目」做。若对全量 dd 做，会生成 60+ 个
        永远用不上的 md 文件，每次部署多打 60 次 PUT，纯浪费。"""
     pending_md = []
-    for m_lim, e_lim, w_lim in [(6, 6, 3), (5, 5, 2), (4, 4, 2), (3, 3, 2)]:
-        cand = slim(dd, m_lim, e_lim, w_lim)
+    dangling = []
 
-        # Step 1: 外置当前保留集里的长 markdown
-        local_md = []
+    def externalize_set(cand):
+        """对候选集做外置，返回 (新建列表, 悬空列表)"""
+        created, dang = [], []
         for key, prefix in (("morning", "morning-content"), ("evening", "evening-content"),
                             ("weekly", "weekly-content")):
             for it in cand.get(key, []):
-                if externalize_longtext(it, content_dir, prefix):
-                    local_md.append(f"data/{prefix}/{it.get('id', 'x').replace('/', '_')}.md")
+                r = externalize_longtext(it, content_dir, prefix)
+                if not r:
+                    continue
+                status, fname = r
+                if status == "dangling":
+                    dang.append((key, it.get("id"), fname))
+                else:
+                    # created / recreated / local —— 三种都要上传
+                    # ⚠️ 必须带 "data/" 前缀：main() 里用的是 BASE / rel_path，
+                    #    而 content_dir = BASE/"data"，fname 是相对 content_dir 的
+                    created.append(f"data/{fname}")
+        return created, dang
+
+    for m_lim, e_lim, w_lim in [(6, 6, 3), (5, 5, 2), (4, 4, 2), (3, 3, 2)]:
+        cand = slim(dd, m_lim, e_lim, w_lim)
+
+        # Step 1: 外置当前保留集里的长 markdown（并自愈悬空引用）
+        local_md, dang = externalize_set(cand)
+        pending_md = local_md
+        dangling = dang
 
         size = write_compact(cand, "/tmp/_fit.json")
         if size <= SIZE_LIMIT:
-            return cand, f"{m_lim}+{e_lim}+{w_lim}", local_md
+            return cand, f"{m_lim}+{e_lim}+{w_lim}", pending_md, dangling
 
         # Step 2: 超标 → 精简最老条目后重试（正文已在 md 里，结构化字段是重复的）
         for key in ("morning", "evening"):
@@ -200,16 +257,11 @@ def fit_size(dd, content_dir):
                 arr[0] = compact_oldest(arr[0])
         size2 = write_compact(cand, "/tmp/_fit.json")
         if size2 <= SIZE_LIMIT:
-            return cand, f"{m_lim}+{e_lim}+{w_lim} (已精简最老条目)", local_md
+            return cand, f"{m_lim}+{e_lim}+{w_lim} (已精简最老条目)", pending_md, dangling
 
     # Step 3: 硬保底 3+3+2，再不行就再精简一次最老的两个
     cand = slim(dd, 3, 3, 2)
-    local_md = []
-    for key, prefix in (("morning", "morning-content"), ("evening", "evening-content"),
-                        ("weekly", "weekly-content")):
-        for it in cand.get(key, []):
-            if externalize_longtext(it, content_dir, prefix):
-                local_md.append(f"data/{prefix}/{it.get('id', 'x').replace('/', '_')}.md")
+    pending_md, dangling = externalize_set(cand)
     for key in ("morning", "evening"):
         arr = cand.get(key, [])
         for i in range(min(2, len(arr))):
@@ -217,7 +269,7 @@ def fit_size(dd, content_dir):
     size = write_compact(cand, "/tmp/_fit.json")
     if size > SIZE_LIMIT:
         print(f"[fit] ERROR 精简后仍 {size} > {SIZE_LIMIT}，请人工检查")
-    return cand, "3+3+2 (硬保底，最老两条已精简)", local_md
+    return cand, "3+3+2 (硬保底，最老两条已精简)", pending_md, dangling
 
 
 
@@ -341,7 +393,7 @@ def main():
 
     # 3) fit_size：优先外置/精简内容，最后才减条目（硬保底 3+3+2）
     content_dir = BASE / "data"
-    d, fit_desc, pending_md = fit_size(d, content_dir)
+    d, fit_desc, pending_md, dangling = fit_size(d, content_dir)
     final_size = write_compact(d, "dashboard-data-v3.json")
     write_compact(d, "data/dashboard-data.json")
     print(f"[fit] {fit_desc} = {final_size} bytes {'✅' if final_size <= SIZE_LIMIT else '❌ 超阈值'}")
@@ -351,6 +403,22 @@ def main():
     print(f"[history] weekly={[x.get('id') for x in d['weekly']]}")
     if final_size > SIZE_LIMIT:
         print(f"[ERROR] 最终体积 {final_size} > {SIZE_LIMIT}，CDN 可能截断！")
+
+    # 3.4) md 悬空审计：v3 里引用了但远端不存在的正文文件 → 看板拉正文会 404
+    #      （2026-11-02 事故：条目手填 content_md_file，文件却从未 PUT）
+    audited = set()
+    for k in ("morning", "evening", "weekly"):
+        for it in d.get(k, []):
+            f = it.get("content_md_file")
+            if f and f not in audited:
+                audited.add(f)
+                if get_remote_sha(f"data/{f}") is None and f"data/{f}" not in pending_md:
+                    print(f"🚨 [md审计] data/{f} 远端不存在（引用它的条目正文会 404）")
+                    dangling.append((k, it.get("id"), f))
+    if dangling:
+        print(f"🚨 [md审计] 共 {len(dangling)} 处悬空引用 —— 必须补传 md 文件后再部署！")
+    else:
+        print(f"[md审计] {len(audited)} 个 content_md_file 引用全部有效 ✅")
 
     # 3.5) 上传外置的 md 文件（体积换历史的关键）
     for rel_path in pending_md:
