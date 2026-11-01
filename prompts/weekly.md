@@ -77,6 +77,9 @@ for k in ('morning','evening'):
 {"weekly":[{ ...完整的单条周报对象... }]}
 
 若正文较长，可把 markdown 单独存到 `/workspace/ai-investment-dashboard/data/weekly-content/weekly-YYYY-MM-DD.md`，JSON 里用 content_md_file 引用（省 4KB，对 CDN 体积很关键）。
+✅ **但必须用 Write 工具真的把 .md 文件写到那个路径上** —— deploy.py 会校验该文件在远端是否存在，缺失会告警并尝试补传；写都没写、也没正文可重建时会报「悬空引用」，v3 里有引用但 CDN 拉不到 → 看板正文 404。
+⚠️ **不要只填 content_md_file 而不写文件**（2026-11-02 早报踩过：引用填了、文件从未 PUT）。
+另一种更省事的写法：**正文放 `summary_markdown` 字段，让 deploy.py 自动外置**（它会自己写 md 并上传）。
 
 ## 2. 拉部署脚本并执行
 🚨 **必须用 GitHub API 拉，不要用 raw.githubusercontent.com**（11-01 实测 raw 连续 10 次全部失败、返回 0 字节；api.github.com 10/10 成功、0.29s）
@@ -124,6 +127,9 @@ python3 scripts/deploy.py weekly YYYY-MM-DD
   # 2) 用 deploy.py 的 --baseline-ref 指定基线 commit 重建
   python3 scripts/deploy.py weekly YYYY-MM-DD --baseline-ref <commit-sha>
   ```
+- 🚨 **必须核对 `[md审计]` 那一行**：应显示「N 个 content_md_file 引用全部有效 ✅」。
+  若出现「🚨 悬空引用」，说明有 content_md_file 指向的 md 文件不存在 → 看板正文会 404。
+  补救：用 Write 工具把对应 .md 写到 `data/{type}-content/{id}.md`，再重跑一次 deploy.py（会自愈补传）。
 - **CDN 重建有 4-6 分钟延迟**：PUT 成功不等于线上已更新
 - 正确验证顺序：① 用 GitHub API `contents/dashboard-data-v3.json` 确认 git 侧已写入（立即可读，source of truth）② 再轮询 `curl -sI https://ceciliachung1123-rgb.github.io/ai-invest-dashboard/dashboard-data-v3.json` 看 content-length 是否等于新文件字节数
 - **不要因为 curl 拿到旧 size 就重复 PUT**
