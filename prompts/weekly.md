@@ -77,9 +77,6 @@ for k in ('morning','evening'):
 {"weekly":[{ ...完整的单条周报对象... }]}
 
 若正文较长，可把 markdown 单独存到 `/workspace/ai-investment-dashboard/data/weekly-content/weekly-YYYY-MM-DD.md`，JSON 里用 content_md_file 引用（省 4KB，对 CDN 体积很关键）。
-✅ **但必须用 Write 工具真的把 .md 文件写到那个路径上** —— deploy.py 会校验该文件在远端是否存在，缺失会告警并尝试补传；写都没写、也没正文可重建时会报「悬空引用」，v3 里有引用但 CDN 拉不到 → 看板正文 404。
-⚠️ **不要只填 content_md_file 而不写文件**（2026-11-02 早报踩过：引用填了、文件从未 PUT）。
-另一种更省事的写法：**正文放 `summary_markdown` 字段，让 deploy.py 自动外置**（它会自己写 md 并上传）。
 
 ## 2. 拉部署脚本并执行
 🚨 **必须用 GitHub API 拉，不要用 raw.githubusercontent.com**（11-01 实测 raw 连续 10 次全部失败、返回 0 字节；api.github.com 10/10 成功、0.29s）
@@ -106,8 +103,10 @@ python3 scripts/deploy.py weekly YYYY-MM-DD
 - fit_size 体积控制（2026-10-30 修复版）：优先级 = **外置长 markdown → 精简最老条目 → 最后才减条目数**
   · 外置：summary_markdown/content_md/content 字段 > 1200 字符 → 写入 data/{type}-content/{id}.md，v3 只留 content_md_file + 300 字摘要
   · 精简最老条目：只保留核心字段（正文已在 md 里，结构化字段是重复信息，安全可弃）
-  · 减条目档位：6+6+3 → 5+5+2 → 4+4+2 → 3+3+2，**3+3+2 是硬保底，绝不降到 2+2+2**
-  · 每降一档前会先尝试精简最老条目
+  · 减条目档位：6+6+6 → 5+5+5 → 5+5+4 → 4+4+3 → 3+3+2，**3+3+2 是硬保底，绝不降到 2+2+2**
+    （weekly 一周才一条，丢一条 = 丢一周，且条目便宜（约 1KB），所以 weekly 档位比日报宽松）
+  · 🚨 **累积精简优先**：先把最老的条目逐条精简到体积达标为止，**尽量不降档**。
+    ⚠️ 旧版「每档只精简 1 条、不够就降档」导致 11-02 周报直接降到 3+3+2，静默丢了 3 条历史。已修复。
   · ⚠️ 旧版曾因「3+3+2 超 93 bytes」静默降到 2+2+2，一次砍掉 2 条历史（morning-2026-10-28 + evening-2026-10-27）。已修复
 - compact 序列化（separators=(',',':')）
 - 只 update 已有文件，PUT 带 sha
@@ -118,18 +117,22 @@ python3 scripts/deploy.py weekly YYYY-MM-DD
 
 ## 3. 验证（重要，别重复 PUT）
 - **最终 size 必须 ≤ 85000**，超了要处理
-- 🚨 **必须核对脚本打印的 `[history] morning/evening/weekly` 三个列表**：
-  预期至少保留最近 3 条 morning + 3 条 evening + 2 条 weekly。
-  若某个 id 意外消失（如 evening-2026-10-27），说明发生了静默降档 → 必须从 git 恢复：
-  ```bash
-  # 1) 找含该 id 的 commit
-  curl -sL "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/commits?path=dashboard-data-v3.json&per_page=100"
-  # 2) 用 deploy.py 的 --baseline-ref 指定基线 commit 重建
-  python3 scripts/deploy.py weekly YYYY-MM-DD --baseline-ref <commit-sha>
-  ```
+- 🚨 **必须核对脚本打印的 `[history] morning/evening/weekly` 三个列表 + `[fit]` 那几行**：
+  · `[fit] 6+6+6` 表示保留了 6 条 morning + 6 条 evening + 6 条 weekly（理想）
+  · `[fit] ⚠️ 因体积限制裁掉 N 条：[...]` —— **裁掉了条目，必须在通知里如实写出被裁的 id**
+  · 预期至少保留最近 3 条 morning + 3 条 evening + 2 条 weekly。低于这个数就要警惕。
+  · 若某个 id 意外消失（如 evening-2026-10-27），说明发生了降档 → **从 archive.json 重建恢复**（最快）：
+    ```bash
+    curl -sfL --max-time 60 -H "Authorization: Bearer ${{GITHUB_TOKEN}}" -H "Accept: application/vnd.github+json"       "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json     && python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))"
+    # 再用 deploy.py 的 fit_size 从 archive 重建（记得把新建的 md 也 PUT 上去）
+    ```
+    兜底：`python3 scripts/deploy.py {RPTTYPE} YYYY-MM-DD --baseline-ref <commit-sha>`
 - 🚨 **必须核对 `[md审计]` 那一行**：应显示「N 个 content_md_file 引用全部有效 ✅」。
   若出现「🚨 悬空引用」，说明有 content_md_file 指向的 md 文件不存在 → 看板正文会 404。
   补救：用 Write 工具把对应 .md 写到 `data/{type}-content/{id}.md`，再重跑一次 deploy.py（会自愈补传）。
+  ⚠️ **用 Write 工具写 .md 时，deploy.py 跑在同一个 sandbox，能读到并自动上传**；
+  但如果在别处手工重建 v3，**必须自己把 md 文件 PUT 上去**，否则又会出现悬空引用
+  （11-02 手工恢复历史时踩过：引用生成了、md 忘了传）。
 - **CDN 重建有 4-6 分钟延迟**：PUT 成功不等于线上已更新
 - 正确验证顺序：① 用 GitHub API `contents/dashboard-data-v3.json` 确认 git 侧已写入（立即可读，source of truth）② 再轮询 `curl -sI https://ceciliachung1123-rgb.github.io/ai-invest-dashboard/dashboard-data-v3.json` 看 content-length 是否等于新文件字节数
 - **不要因为 curl 拿到旧 size 就重复 PUT**
