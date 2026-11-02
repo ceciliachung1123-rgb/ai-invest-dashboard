@@ -394,6 +394,44 @@ body {
   border-radius: 0 6px 6px 0;
 }
 
+/* ============== 结构化面板（structured_file 补全后渲染） ============== */
+.struct-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.struct-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.struct-section { margin-bottom: 14px; }
+.struct-section-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.struct-list { list-style: none; margin: 0; padding: 0; }
+.struct-list > li {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.struct-list > li:last-child { border-bottom: none; }
+.struct-name { color: var(--text-primary); font-weight: 600; margin-right: 6px; }
+.struct-kv { display: flex; gap: 10px; font-size: 12.5px; padding: 2px 0; }
+.struct-k { color: var(--text-dim); min-width: 108px; flex: 0 0 auto; }
+.struct-v { color: var(--text-secondary); word-break: break-word; }
+.struct-inline { color: var(--text-secondary); }
+
 /* ============== TAGS / BADGES ============== */
 .tag {
   display: inline-flex;
@@ -1664,6 +1702,250 @@ function ensureMdLoaded(r) {
   loadMdFile(r, () => { try { renderAll(); } catch(e) {} });
 }
 
+// ============ 结构化字段按需补全（structured_file） ============
+// deploy.py 精简最老条目时，会把 indices / capital_flow / hotspots / key_attribution /
+// 连板梯队 等结构化字段外置到 data/structured/{id}.json，条目里只留 structured_file 引用
+// （原来这些字段被直接清空 → 线上点开历史卡片时结构化面板是空的）。
+// 这里按需把文件拉回来，合并到条目上再渲染。
+// ⚠️ 相对基准与 loadMdFile() 完全一致：ref 相对 data/ 目录 → 页面里拼 'data/' + ref。
+
+// 判断「条目里的当前值是否已被 compact_oldest 精简过」—— 只有精简过才用完整值覆盖，
+// 免得旧 structured 文件里的数据盖掉条目里的新数据
+function isTrimmedValue(cur, next) {
+  if (cur === undefined || cur === null) return true;
+  if (typeof cur === 'string') {
+    // compact_oldest 折叠长数组生成的占位符
+    if (/^（\d+ 项，详细内容见正文 md）$/.test(cur)) return true;
+    // compact_oldest 截断长字符串：200 字 + 省略号
+    if (cur.length === 201 && cur.endsWith('…') && typeof next === 'string' && next.length > 200) return true;
+    return false;
+  }
+  // compact_oldest 对大 dict 只保留前 3 个 key
+  if (typeof cur === 'object' && !Array.isArray(cur) && next && typeof next === 'object' && !Array.isArray(next)) {
+    const ck = Object.keys(cur), nk = Object.keys(next);
+    if (ck.length < nk.length && ck.every(k => k in next && JSON.stringify(cur[k]) === JSON.stringify(next[k]))) return true;
+  }
+  return false;
+}
+
+// 把 structured 文件里的字段合并回条目，返回补上的字段数
+function mergeStructuredFields(r, obj) {
+  if (!r || !obj || typeof obj !== 'object' || Array.isArray(obj)) return 0;
+  let n = 0;
+  Object.keys(obj).forEach(k => {
+    if (k === 'structured_file') return;
+    if (isTrimmedValue(r[k], obj[k])) { r[k] = obj[k]; n++; }
+  });
+  return n;
+}
+
+// structured_file 异步加载：拉取后合并回条目并触发重渲染
+// ref → 回调队列（同一个 ref 并发加载时，后来的回调挂到队列上，
+// 否则 viewReport 里的「加载中…」弹窗会永远等不到 onDone）
+const _structuredLoading = new Map();
+function loadStructuredFile(r, onDone) {
+  if (!r || !r.structured_file) return;
+  if (r._structuredLoaded) { onDone && onDone(); return; }
+  const ref = r.structured_file;
+  if (_structuredLoading.has(ref)) {
+    if (onDone) _structuredLoading.get(ref).push(onDone);
+    return;
+  }
+  _structuredLoading.set(ref, onDone ? [onDone] : []);
+  const base = (state.config && state.config.remoteDataUrl) || '';
+  const cands = [];
+  const push = (u) => { if (u && !cands.includes(u)) cands.push(u); };
+  // ① 相对 data/ 目录（和 content_md_file 同一条相对基准）
+  push('data/' + ref);
+  push(ref);
+  const repoPath = parseRepoPath(base);
+  if (repoPath) {
+    const fileName = base.slice(base.lastIndexOf('/') + 1);
+    const dir = fileName.includes('/') ? fileName.slice(0, fileName.lastIndexOf('/')) : '';
+    const stPath = (dir ? dir + '/' : '') + ref;
+    // ② Pages 同源（页面本身就托管在 Pages 上）
+    try {
+      const u = new URL(base);
+      if (u.hostname.endsWith('.github.io')) {
+        push(`${base.slice(0, base.lastIndexOf('/'))}/data/${ref}`);
+      }
+    } catch (e) {}
+    // ③ jsDelivr 镜像（实测比 raw 稳，raw 已 0/3 失败）
+    push(`https://cdn.jsdelivr.net/gh/${repoPath}@main/data/${ref}`);
+    push(`https://gcore.jsdelivr.net/gh/${repoPath}@main/data/${ref}`);
+    push(`https://fastly.jsdelivr.net/gh/${repoPath}@main/data/${ref}`);
+    push(`https://cdn.jsdelivr.net/gh/${repoPath}@main/${stPath}`);
+    push(`https://raw.githubusercontent.com/${repoPath}/main/data/${ref}`);
+    push(`https://raw.githubusercontent.com/${repoPath}/main/${stPath}`);
+  }
+  let i = 0;
+  const finish = () => {
+    const cbs = _structuredLoading.get(ref) || [];
+    _structuredLoading.delete(ref);
+    cbs.forEach(cb => { try { cb(); } catch (e) {} });
+  };
+  const tryNext = () => {
+    if (i >= cands.length) {
+      // 静默降级：拿不到就用现有的精简版本，不报错、不白屏
+      r._structuredFailed = true;
+      finish();
+      return;
+    }
+    const u = cands[i++];
+    fetch(u, { cache: 'no-store' })
+      .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+      .then(obj => {
+        r._structuredLoaded = true;
+        mergeStructuredFields(r, obj);
+        finish();
+      })
+      .catch(() => tryNext());
+  };
+  tryNext();
+}
+
+// 渲染时确保结构化字段已补全（并发拉取，拿到后触发既有重渲染逻辑）
+function ensureStructuredLoaded(r) {
+  if (!r || !r.structured_file) return;
+  if (r._structuredLoaded || r._structuredFailed) return;
+  loadStructuredFile(r, () => { try { renderAll(); } catch (e) {} });
+}
+
+// ============ 结构化面板渲染 ============
+// 结构化字段的形状在日报/晚报/周报里是同一套（indices/sector_top/capital_flow/连板/...），
+// 这里用同一套渲染器兜住所有形状：有 name 的对象数组 → 逐条；对象 → 键值行；
+// 字符串数组 → 行内顿号分隔；标量 → 直接显示。
+
+// 字段名 → 中文标签（别让用户看 change_pct / main_net_yi 这种原始 key）
+const STRUCT_LABELS = {
+  name: '名称', code: '代码', close: '收盘', open: '开盘', high: '最高', low: '最低',
+  prev_close: '昨收', change_pct: '涨跌幅', pct: '涨跌幅', chg_pct: '涨跌幅', chg: '涨跌',
+  turnover: '成交额', turnover_yi: '成交额(亿)', volume: '成交量', amount_yi: '金额(亿)',
+  rise: '上涨家数', fall: '下跌家数', up: '上涨', down: '下跌', flat: '平盘',
+  stocks_up: '上涨家数', stocks_down: '下跌家数', member: '样本数', total: '合计',
+  limit_up: '涨停', limit_down: '跌停', up_limit: '涨停', down_limit: '跌停',
+  limit_up_count: '涨停数', limit_down_count: '跌停数', blast_count: '炸板数',
+  broken_limit: '炸板', failed_seal: '炸板', seal_rate_pct: '封板率',
+  promotion_rate: '晋级率', consecutive_boards: '连板股数', max_boards: '最高板',
+  max_height: '最高板', max_stock: '最高板个股', h2: '2板', h3: '3板', h4: '4板',
+  h5: '5板', h6: '6板', total_boards: '连板股数',
+  main_net_yi: '主力净流入(亿)', huge_net_yi: '超大单(亿)', large_net_yi: '大单(亿)',
+  medium_net_yi: '中单(亿)', small_net_yi: '小单(亿)', north_net: '北向(亿)',
+  south_net: '南向(亿)', northbound: '北向', north_south_flow: '北向南向资金',
+  total_yi: '成交额(亿)', total_wanyi: '成交额(万亿)', prev_total_yi: '昨日成交额(亿)',
+  change_yi: '较昨日增减(亿)', sh_yi: '沪市(亿)', sz_yi: '深市(亿)', market: '市场',
+  shanghai: '沪股通', shenzhen: '深股通', sz: '深股通', hsi: '恒指', hstech: '恒科',
+  dow: '道指', dji: '道指', sp500: '标普', nasdaq: '纳指', session_date: '交易日',
+  direction: '方向', note: '备注', comment: '说明', source: '来源', disclaimer: '免责声明',
+  title: '标题', item: '事项', theme: '主题', detail: '详情', impact: '影响',
+  fact: '事实', facts: '事实', evidence: '证据', trigger: '触发', carryover: '延续性',
+  fake_signal: '证伪信号', falsify: '证伪条件', interpretation: '解读', reason: '原因',
+  leader: '龙头', leaders: '龙头', lead: '龙头', days: '持续天数', duration_days: '持续天数',
+  rank: '排名', date: '日期', weekday: '星期', week: '星期', type: '类型', event: '事件',
+  if: '如果', then: '那么', week_stage: '本周阶段', one_sentence: '一句话总结',
+  cycle: '周期', cycle_position: '周期位置', attribution: '归因',
+  attribution_summary: '归因小结', main_lines: '主线', mainlines: '主线',
+  key_events: '关键事件', highlights: '亮点', sectors: '板块', sector_top: '领涨板块',
+  sector_bottom: '领跌板块', sector_top5: '领涨板块', sector_bottom5: '领跌板块',
+  sentiment: '情绪', sentiment_basis: '情绪依据', emotion_cycle: '情绪周期',
+  top_themes: '本周主线', cross_market: '跨市场', next_week_outlook: '下周展望',
+  risk_signals: '风险信号', market_summary: '市场概览', word_count: '字数',
+  data_sources: '数据来源', data_missing: '数据缺口', data_gaps: '数据缺口',
+  data_notes: '数据口径', watchlist: '观察清单', watchlist_tomorrow: '明日观察',
+  indices: '指数', hk_index: '港股指数', us_overnight: '隔夜美股', us_market: '美股市场',
+  breadth: '市场广度', turnover: '成交额', fund_flow: '资金流向', capital_flow: '资金流向',
+  连板: '连板梯队', hotspots: '热点方向', key_attribution: '关键归因',
+  key_attributions: '关键归因', sections: '周报结构', hsgt: '沪深港通', macro: '宏观',
+  龙虎榜: '龙虎榜', net_flow: '净流入', pct_of_turnover: '占成交额比',
+};
+
+function structLabel(k) { return STRUCT_LABELS[k] || k; }
+
+// 涨跌幅类字段 → 带涨跌颜色的标签
+function structPctTag(v) {
+  if (typeof v !== 'number' || !isFinite(v)) return '';
+  const cls = v > 0 ? 'tag-up' : (v < 0 ? 'tag-down' : 'tag-info');
+  return `<span class="tag ${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
+}
+
+function structNum(v) {
+  if (typeof v !== 'number' || !isFinite(v)) return String(v);
+  return String(Math.round(v * 100) / 100);
+}
+
+// 递归渲染任意 JSON 值
+function renderStructValue(v, key, depth) {
+  if (v === null || v === undefined) return '<span class="text-dim">—</span>';
+  if (typeof v === 'boolean') return `<span class="tag">${v ? '是' : '否'}</span>`;
+  if (typeof v === 'number') {
+    if (/_pct$|^pct$|change_pct$/.test(key || '')) return structPctTag(v);
+    return escapeHtml(structNum(v));
+  }
+  if (typeof v === 'string') return escapeHtml(v);
+  if (Array.isArray(v)) {
+    if (!v.length) return '<span class="text-dim">—</span>';
+    // 标量数组 → 行内顿号分隔（如 watchlist 的字符串清单）
+    if (v.every(x => x === null || typeof x !== 'object')) {
+      return `<span class="struct-inline">${v.map(x => renderStructValue(x, key, depth + 1)).join('、')}</span>`;
+    }
+    // 对象数组 → 逐条渲染
+    return `<ul class="struct-list">${v.map(x => renderStructItem(x, depth + 1)).join('')}</ul>`;
+  }
+  // 对象 → 键值行
+  const ks = Object.keys(v);
+  if (!ks.length) return '<span class="text-dim">—</span>';
+  return ks.map(k => `<div class="struct-kv"><span class="struct-k">${escapeHtml(structLabel(k))}</span><span class="struct-v">${renderStructValue(v[k], k, depth + 1)}</span></div>`).join('');
+}
+
+// 对象数组里的一项：标题 + 明细
+function renderStructItem(x, depth) {
+  if (x === null || typeof x !== 'object' || Array.isArray(x)) {
+    return `<li>${renderStructValue(x, '', depth)}</li>`;
+  }
+  const ks = Object.keys(x);
+  const titleKey = ['title', 'theme', 'item', 'name', 'event', 'label', 'cycle', 'weekday', 'date', 'rank']
+    .find(k => k in x && (typeof x[k] === 'string' || typeof x[k] === 'number'));
+  const head = titleKey !== undefined
+    ? `<span class="struct-name">${escapeHtml(String(x[titleKey]))}</span>` : '';
+  const body = ks.filter(k => k !== titleKey).map(k =>
+    `<div class="struct-kv"><span class="struct-k">${escapeHtml(structLabel(k))}</span><span class="struct-v">${renderStructValue(x[k], k, depth + 1)}</span></div>`
+  ).join('');
+  return `<li>${head}${body}</li>`;
+}
+
+// 结构化字段 → 分区标题（顺序即展示顺序）
+const STRUCT_SECTIONS = [
+  ['sentiment', '情绪定位'], ['indices', '指数行情'], ['hk_index', '港股指数'],
+  ['us_overnight', '隔夜美股'], ['us_market', '美股市场'], ['breadth', '市场广度'],
+  ['turnover', '成交额'], ['fund_flow', '资金流向'], ['capital_flow', '资金流向'],
+  ['hsgt', '沪深港通'], ['sector_top', '领涨板块'], ['sector_top5', '领涨板块'],
+  ['sector_bottom', '领跌板块'], ['sector_bottom5', '领跌板块'],
+  ['连板', '连板梯队'], ['hotspots', '热点方向'],
+  ['key_attribution', '关键归因'], ['key_attributions', '关键归因'],
+  ['key_events', '关键事件'], ['sections', '周报结构'], ['main_lines', '主线'],
+  ['sectors', '板块'], ['attribution', '归因'], ['attribution_summary', '归因小结'],
+  ['highlights', '亮点'], ['watchlist', '观察清单'], ['watchlist_tomorrow', '明日观察'],
+  ['macro', '宏观'], ['龙虎榜', '龙虎榜'], ['data_notes', '数据口径说明'],
+  ['data_missing', '数据缺口'], ['data_gaps', '数据缺口'], ['data_sources', '数据来源'],
+];
+
+// 结构化面板 HTML：字段在条目上（内联或从 structured_file 合并回来的）都能渲染
+function renderStructuredPanel(r) {
+  if (!r) return '';
+  const parts = [];
+  STRUCT_SECTIONS.forEach(([key, title]) => {
+    const v = r[key];
+    if (v === undefined || v === null) return;
+    // 还是占位符（structured 没拉到 / 没恢复）→ 不渲染，避免误导
+    if (typeof v === 'string' && /项，详细内容见正文 md）$/.test(v)) return;
+    const body = renderStructValue(v, key, 0);
+    if (!body) return;
+    parts.push(`<div class="struct-section"><div class="struct-section-title">${escapeHtml(title)}</div>${body}</div>`);
+  });
+  if (!parts.length) return '';
+  return `<div class="struct-panel"><div class="struct-panel-title">📊 结构化数据</div>${parts.join('')}</div>`;
+}
+
 function switchTab(name) {
   currentTab = name;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -1703,6 +1985,7 @@ function renderReports(type) {
   
   const latest = items[0];
   items.forEach(ensureMdLoaded);
+  items.forEach(ensureStructuredLoaded);
   latestEl.innerHTML = renderReportCard(latest, type, true);
   
   if (items.length > 1) {
@@ -1746,6 +2029,7 @@ function renderReportCard(r, type, isLatest) {
       </div>
       <div class="card-body" style="max-height: ${isLatest ? 'none' : '200px'}; overflow:hidden;">
         ${md(reportBody(r) || (r.content_md_file ? '（正文加载中…）' : '（无内容）'))}
+        ${renderStructuredPanel(r)}
       </div>
     </div>`;
 }
@@ -2072,6 +2356,12 @@ function viewReport(type, id) {
     openModal(`<div class="modal-body"><div class="empty-text">正文加载中…</div></div>`, 'modal-large');
     return;
   }
+  // 结构化字段外置时，先加载完再开弹窗（拿不到就静默降级，用现有精简版本）
+  if (r.structured_file && !r._structuredLoaded && !r._structuredFailed) {
+    loadStructuredFile(r, () => viewReport(type, id));
+    openModal(`<div class="modal-body"><div class="empty-text">结构化数据加载中…</div></div>`, 'modal-large');
+    return;
+  }
   openModal(`
     <div class="modal-header">
       <div class="modal-title">${type === 'morning' ? '🌅 热点早报' : '🌆 行情晚报'} · ${r.date}</div>
@@ -2084,6 +2374,7 @@ function viewReport(type, id) {
         ${r.generated_at ? `<span>🕐 ${r.generated_at}</span>` : ''}
       </div>
       <div class="card-body">${md(reportBody(r) || (r.content_md_file ? '（正文加载中…）' : '（无内容）'))}</div>
+      ${renderStructuredPanel(r)}
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="copyReport('${type}','${id}')">复制全文</button>
@@ -2514,11 +2805,21 @@ function mergeData(data) {
     if (Array.isArray(data[key])) {
       // 按 id 去重合并
       const existing = new Set(state[key].map(x => x.id));
+      const byId = new Map(state[key].map(x => [x.id, x]));
       data[key].forEach(item => {
         if (!item.id) item.id = uid();
         if (!existing.has(item.id)) {
           state[key].push(item);
           changed = true;
+        } else {
+          // 远端条目带了 structured_file 引用，而本地这条是老版本（没有引用）→
+          // 把引用补上，渲染时会去 fetch 结构化文件补全被精简掉的字段。
+          // （老用户 localStorage 里存的是被裁剪过的条目，光靠"只追加"的合并补不回来）
+          const old = byId.get(item.id);
+          if (old && item.structured_file && !old.structured_file) {
+            old.structured_file = item.structured_file;
+            changed = true;
+          }
         }
       });
     }
