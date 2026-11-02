@@ -19,7 +19,7 @@
 🚨 **用 GitHub API 拉，不要用 raw**（11-01 实测 raw 连续 10 次全失败、0 字节）：
 
 ```bash
-curl -sfL --max-time 60 -H "Authorization: Bearer ${{GITHUB_TOKEN}}" -H "Accept: application/vnd.github+json" \
+curl -sfL --max-time 60 -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" \
   "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json \
 && python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))" \
 && python3 -c "
@@ -94,7 +94,7 @@ for k in ('morning','evening'):
 ```bash
 cd /workspace/ai-investment-dashboard && mkdir -p scripts
 for i in 1 2 3; do
-  curl -sfL --max-time 30 -H "Authorization: Bearer ${{GITHUB_TOKEN}}" -H "Accept: application/vnd.github+json" \
+  curl -sfL --max-time 30 -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" \
     "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/scripts/deploy.py" -o /tmp/deploy_api.json \
   && python3 -c "import base64,json;m=json.load(open('/tmp/deploy_api.json'));open('scripts/deploy.py','wb').write(base64.b64decode(m['content']))" \
   && python3 -c "import ast;ast.parse(open('scripts/deploy.py').read())" && echo "脚本就绪" && break
@@ -133,7 +133,7 @@ python3 scripts/deploy.py weekly YYYY-MM-DD
   · 预期至少保留最近 3 条 morning + 3 条 evening + 2 条 weekly。低于这个数就要警惕。
   · 若某个 id 意外消失（如 evening-2026-10-27），说明发生了降档 → **从 archive.json 重建恢复**（最快）：
     ```bash
-    curl -sfL --max-time 60 -H "Authorization: Bearer ${{GITHUB_TOKEN}}" -H "Accept: application/vnd.github+json"       "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json     && python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))"
+    curl -sfL --max-time 60 -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json"       "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json     && python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))"
     # 再用 deploy.py 的 fit_size 从 archive 重建（记得把新建的 md 也 PUT 上去）
     ```
     兜底：`python3 scripts/deploy.py {RPTTYPE} YYYY-MM-DD --baseline-ref <commit-sha>`
