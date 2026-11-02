@@ -148,10 +148,11 @@ python3 scripts/deploy.py evening YYYY-MM-DD
   · 预期至少保留最近 3 条 morning + 3 条 evening + 2 条 weekly。低于这个数就要警惕。
   · 若某个 id 意外消失（如 evening-2026-10-27），说明发生了降档 → **从 archive.json 重建恢复**（最快）：
     ```bash
-    curl -sfL --max-time 60 -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json"       "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json     && python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))"
+    curl -sfL --max-time 60 -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json"       "https://api.github.com/repos/ceciliachung1123-rgb/ai-invest-dashboard/contents/data/archive.json" -o /tmp/arch_api.json \
+    && python3 -c "import base64,json;m=json.load(open('/tmp/arch_api.json'));open('/tmp/archive.json','wb').write(base64.b64decode(m['content']))"
     # 再用 deploy.py 的 fit_size 从 archive 重建（记得把新建的 md 也 PUT 上去）
     ```
-    兜底：`python3 scripts/deploy.py {RPTTYPE} YYYY-MM-DD --baseline-ref <commit-sha>`
+    兜底：`python3 scripts/deploy.py evening YYYY-MM-DD --baseline-ref <commit-sha>`
 - 🚨 **必须核对 `[md审计]` 那一行**：应显示「N 个 content_md_file 引用全部有效 ✅」。
   若出现「🚨 悬空引用」，说明有 content_md_file 指向的 md 文件不存在 → 看板正文会 404。
   补救：用 Write 工具把对应 .md 写到 `data/{type}-content/{id}.md`，再重跑一次 deploy.py（会自愈补传）。
