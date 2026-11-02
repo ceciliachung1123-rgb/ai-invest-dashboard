@@ -13,6 +13,8 @@ AI 投资看板 - 部署脚本（2026-10-23 验证版）
 3. slim 自动收紧：保证 v3.json ≤ 85000 bytes（CDN >100KB 会截断）
 4. compact 序列化（indent=2 会膨胀 25%）
 5. 只 update 已有文件，PUT 带 sha（create 新文件名会触发 Page build failed）
+6. 结构化字段外置：精简最老条目时把被丢弃的字段存到 data/structured/{id}.json，
+   条目里留 structured_file 引用，前端按需 fetch 回来合并（不丢数据、不涨 v3 体积）
 """
 import base64
 import copy
@@ -35,6 +37,20 @@ HDRS = {
 }
 SIZE_LIMIT = 85000  # CDN 截断阈值 100KB，留 15% 安全余量
 DEPLOY_FILES = ["dashboard-data-v3.json", "data/dashboard-data.json"]
+
+# ============ 结构化字段外置（2026-11-04） ============
+# 背景：compact_oldest 精简最老条目时，indices / capital_flow / hotspots /
+#      key_attribution / 连板梯队 等结构化字段会被折叠成占位符（"（5 项，详细内容见正文 md）"），
+#      **等于直接丢弃** —— 线上看板点开历史卡片时结构化面板是空的。
+# 方案：被丢弃的字段写到 data/structured/{id}.json，条目里加 structured_file 引用，
+#      前端渲染时按需 fetch 回来合并。体积换历史，和 content_md_file 同一套路。
+# ------------------------------------------------------------
+STRUCTURED_DIR = "structured"        # 相对 data/ 目录（与 morning-content 同级）
+STRUCTURED_MAX_BYTES = 95000         # CDN 对 >100KB 单文件会截断响应，留 5% 余量
+# 正文 markdown 字段：正文已在 content_md_file 里，不重复进 structured 文件
+BODY_TEXT_FIELDS = ("summary_markdown", "content_md", "content")
+# compact_oldest 折叠长数组时生成的占位符（用于识别「已被裁剪」的字段）
+TRIM_PLACEHOLDER_RE = re.compile(r"^（\d+ 项，详细内容见正文 md）$")
 
 
 def pull_remote(rel, ref=None):
@@ -85,6 +101,23 @@ def get_remote_sha(rel):
         if e.code == 404:
             return None
         raise
+
+
+def list_remote_structured():
+    """列出远端 data/structured/ 下已有的 json 文件名（只发一次 API 请求）。
+
+    用途：远端已有 structured 文件的条目，v3 里应该带 structured_file 引用。
+    v3.json 每次部署都会被重写，引用可能丢；这里扫一遍目录把引用补回来（幂等自愈）。"""
+    req = urllib.request.Request(f"{API}/contents/data/{STRUCTURED_DIR}", headers=HDRS)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            items = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return set()
+        raise
+    return {x.get("name") for x in items
+            if x.get("type") == "file" and str(x.get("name", "")).endswith(".json")}
 
 
 def put_file(rel, data_bytes, message):
@@ -192,8 +225,14 @@ def externalize_longtext(item, content_dir, prefix):
 
 def compact_oldest(item):
     """精简最老条目：保留核心字段，长字符串截断，长数组/字典折叠。
-    正文已在 content_md_file 里，结构化字段是重复信息，可以安全精简。"""
+    正文已在 content_md_file 里，结构化字段是重复信息，可以安全精简。
+
+    返回 (精简后条目, 被精简掉的字段字典)：
+      被精简掉的字段**不能直接丢** —— 它们要外置到 data/structured/{id}.json，
+      条目里留 structured_file 引用，前端按需 fetch 回来合并。
+      否则历史卡片上的结构化面板会变空（11-02 早/晚报事故）。"""
     out = {}
+    removed = {}
     for k, v in item.items():
         if k in KEEP_FIELDS:
             out[k] = v
@@ -207,17 +246,151 @@ def compact_oldest(item):
             out[k] = {kk: v[kk] for kk in list(v)[:3]}
         else:
             out[k] = v
-    return out
+        # 字段被改写 → 记下原值（正文 markdown 除外：正文已在 md 文件里）
+        if out[k] != v and k not in BODY_TEXT_FIELDS:
+            removed[k] = v
+    return out, removed
 
 
-def fit_size(dd, content_dir):
+# ============ 结构化字段外置相关工具 ============
+
+def structured_ref(item_id):
+    """structured 文件的引用路径（相对 data/ 目录，与 content_md_file 同级约定）"""
+    safe = str(item_id or "x").replace("/", "_")
+    return f"{STRUCTURED_DIR}/{safe}.json"
+
+
+def json_size(obj):
+    """compact 序列化后的字节数"""
+    return len(json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def cap_structured_payload(payload, limit=STRUCTURED_MAX_BYTES):
+    """保证单个 structured 文件 < limit 字节（CDN 对 >100KB 单文件会截断响应）。
+    超限时优先丢最大的字段；只剩一个字段还超限就截断它。"""
+    if json_size(payload) <= limit:
+        return payload
+    while len(payload) > 1 and json_size(payload) > limit:
+        biggest = max(payload, key=lambda k: json_size({k: payload[k]}))
+        payload.pop(biggest)
+    if len(payload) == 1 and json_size(payload) > limit:
+        k = next(iter(payload))
+        v = payload[k]
+        if isinstance(v, list):
+            while len(v) > 1 and json_size(payload) > limit:
+                v = v[:max(1, len(v) // 2)]
+                payload[k] = v
+        elif isinstance(v, dict):
+            keys = list(v)
+            while len(keys) > 1 and json_size(payload) > limit:
+                keys = keys[:max(1, len(keys) // 2)]
+                payload[k] = {kk: v[kk] for kk in keys}
+        elif isinstance(v, str):
+            payload[k] = v[:1000]
+    return payload
+
+
+def is_trimmed_placeholder(v):
+    """compact_oldest 折叠长数组生成的占位符"""
+    return isinstance(v, str) and bool(TRIM_PLACEHOLDER_RE.match(v))
+
+
+def is_trimmed_dict(original, trimmed):
+    """compact_oldest 对大 dict 只保留前 3 个 key —— 判断 trimmed 是否是被裁过的 dict"""
+    if not (isinstance(original, dict) and isinstance(trimmed, dict)):
+        return False
+    if len(original) <= len(trimmed):
+        return False
+    if not set(trimmed.keys()).issubset(original.keys()):
+        return False
+    return all(trimmed[k] == original[k] for k in trimmed)
+
+
+def is_trimmed_str(original, trimmed):
+    """compact_oldest 对长字符串截断成 200 字 + 省略号"""
+    if not (isinstance(original, str) and isinstance(trimmed, str)):
+        return False
+    return len(original) > 200 and trimmed == original[:200] + "…"
+
+
+def is_trimmed_of(original, trimmed):
+    """trimmed 是不是 original 被 compact_oldest 裁剪后的产物"""
+    if original == trimmed:
+        return False
+    if is_trimmed_placeholder(trimmed):
+        return True
+    if is_trimmed_dict(original, trimmed):
+        return True
+    if is_trimmed_str(original, trimmed):
+        return True
+    return False
+
+
+def merge_richer(old_item, new_item):
+    """archive 合并策略：**占位符不覆盖富字段**。
+    v3.json 里的条目可能已经被裁剪成占位符，如果直接写回 archive，
+    archive 里保存的完整版就被占位符冲掉了（历史结构化数据永久丢失）。
+    返回 (合并后的条目, 是否发生了变化)。"""
+    merged = dict(new_item)
+    changed = False
+    for k, ov in (old_item or {}).items():
+        if k not in merged:
+            merged[k] = ov
+            changed = True
+            continue
+        nv = merged[k]
+        if is_trimmed_of(ov, nv):
+            # 新值是被裁剪的占位符 → 保留 archive 里的完整版
+            merged[k] = ov
+            changed = True
+    return merged, changed
+
+
+def recover_from_archive(item, archive_item):
+    """从 archive.json 里找回被 compact_oldest 裁掉的结构化字段。
+
+    返回 {字段名: 完整原值}（没有可恢复的字段则返回空 dict）。
+    ⚠️ 只在「v3 里的值确实是占位符、archive 里的值更完整」时才恢复，
+       且要求 id/date/title 对得上（同一代报告），避免把旧版数据混进新版。"""
+    if not archive_item:
+        return {}
+    if archive_item.get("date") != item.get("date"):
+        return {}
+    at, it = archive_item.get("title"), item.get("title")
+    if at and it and at != it:
+        return {}
+    recovered = {}
+    for k, av in archive_item.items():
+        if k in KEEP_FIELDS or k in BODY_TEXT_FIELDS:
+            continue
+        if k not in item:
+            continue
+        if is_trimmed_of(av, item[k]):
+            recovered[k] = av
+    return recovered
+
+
+def fit_size(dd, content_dir, archive=None, remote_structured=None):
     """把 dd 压到 ≤ SIZE_LIMIT。优先级：外置 > 精简最老 > 减条目（保底 3+3+2）。
-    返回 (最终数据, 说明文本, 需要上传的 md 文件列表, 悬空引用列表)
+    返回 (最终数据, 说明文本, 需要上传的 md 文件列表, 悬空引用列表, 结构化载荷字典, 被精简条目 id 列表)
 
     ⚠️ 外置只对「当前档位保留的条目」做。若对全量 dd 做，会生成 60+ 个
-       永远用不上的 md 文件，每次部署多打 60 次 PUT，纯浪费。"""
+       永远用不上的 md 文件，每次部署多打 60 次 PUT，纯浪费。
+
+    结构化载荷：{条目 id: {字段名: 完整原值}} —— 被精简掉的字段不丢，
+       写盘成 data/structured/{id}.json，条目里加 structured_file 引用。
+    archive：可选，data/archive.json 的内容 —— 用来找回「上一轮已经被裁掉」的字段。
+    remote_structured：可选，远端 data/structured/ 已有的文件名集合 —— 用来补引用。"""
     pending_md = []
     dangling = []
+    structured = {}          # {条目 id: {字段名: 完整原值}}
+    trimmed_ids = []        # 本档位被精简过的条目 id（用于输出「哪些条目被精简了」）
+    remote_structured = remote_structured or set()
+    archive_index = {}
+    for k in ("morning", "evening", "weekly"):
+        for x in (archive or {}).get(k, []):
+            if x.get("id"):
+                archive_index[x["id"]] = x
 
     def externalize_set(cand):
         """对候选集做外置，返回 (新建列表, 悬空列表)"""
@@ -238,10 +411,49 @@ def fit_size(dd, content_dir):
                     created.append(f"data/{fname}")
         return created, dang
 
+    def recover_set(cand):
+        """从 archive.json 找回被裁剪掉的结构化字段（不改动 v3 里的占位符，
+        只把完整值放进 structured 载荷 → 前端 fetch 回来合并）。
+        占位符留在 v3 里，体积不涨。"""
+        n = 0
+        for key in ("morning", "evening", "weekly"):
+            for it in cand.get(key, []):
+                aid = it.get("id")
+                if not aid:
+                    continue
+                rec = recover_from_archive(it, archive_index.get(aid))
+                if not rec:
+                    continue
+                structured.setdefault(aid, {}).update(rec)
+                it["structured_file"] = structured_ref(aid)
+                n += 1
+        return n
+
+    def attach_existing_refs(cand):
+        """远端已有 structured 文件 → 给对应条目补上 structured_file 引用（幂等自愈）。
+        v3.json 每次部署都会被重写，引用可能丢；这里按远端目录把引用补回来。"""
+        n = 0
+        for key in ("morning", "evening", "weekly"):
+            for it in cand.get(key, []):
+                aid = it.get("id")
+                if not aid or it.get("structured_file"):
+                    continue
+                name = f"{str(aid).replace('/', '_')}.json"
+                if name in remote_structured:
+                    it["structured_file"] = structured_ref(aid)
+                    n += 1
+        return n
+
     # 档位：weekly 一周才一条，丢一条 = 丢一周，且条目很便宜（正文已外置，约 1KB/条）
     # → weekly 档位给得比日报宽松
     for m_lim, e_lim, w_lim in [(6, 6, 6), (5, 5, 5), (5, 5, 4), (4, 4, 3), (3, 3, 2)]:
         cand = slim(dd, m_lim, e_lim, w_lim)
+        structured.clear()      # 每个档位独立重来（档位之间会互相覆盖）
+        trimmed_ids.clear()
+
+        # Step 0: 从 archive 找回上一轮被裁掉的字段（不占 v3 体积）+ 补远端已有文件的引用
+        recover_set(cand)
+        attach_existing_refs(cand)
 
         # Step 1: 外置当前保留集里的长 markdown（并自愈悬空引用）
         local_md, dang = externalize_set(cand)
@@ -254,29 +466,54 @@ def fit_size(dd, content_dir):
         #      静默丢掉 morning-2026-10-28 / evening-2026-10-27 / weekly-2026-10-16。
         #      现在先把最老的几条逐条精简到够用为止，**尽量不降档**。
         #      代价：被精简条目的结构化字段变简略（正文仍在 md 里，用户看得到完整版）。
+        #      2026-11-04 起：被精简的结构化字段会外置到 data/structured/{id}.json，
+        #      前端按需补全 → 结构化面板不再空白。
         max_trim = max(len(cand.get("morning", [])), len(cand.get("evening", [])))
         for step in range(0, max_trim + 1):
             if step > 0:
                 for key in ("morning", "evening"):
                     arr = cand.get(key, [])
                     if step - 1 < len(arr):
-                        arr[step - 1] = compact_oldest(arr[step - 1])
+                        compacted, removed = compact_oldest(arr[step - 1])
+                        arr[step - 1] = compacted
+                        aid = compacted.get("id")
+                        if aid:
+                            trimmed_ids.append(aid)
+                        if removed:
+                            if aid:
+                                # 本轮裁掉的字段是「最新的真值」→ 覆盖 archive 恢复值
+                                structured.setdefault(aid, {}).update(removed)
+                                compacted["structured_file"] = structured_ref(aid)
             size = write_compact(cand, "/tmp/_fit.json")
             if size <= SIZE_LIMIT:
                 trim_note = f"（已精简最老 {step} 条）" if step else "（无需精简）"
-                return cand, f"{m_lim}+{e_lim}+{w_lim} {trim_note}", pending_md, dangling
+                return (cand, f"{m_lim}+{e_lim}+{w_lim} {trim_note}", pending_md, dangling,
+                        dict(structured), list(trimmed_ids))
 
     # Step 3: 硬保底 3+3+2，再不行就再精简一次最老的两个
     cand = slim(dd, 3, 3, 2)
+    structured.clear()
+    trimmed_ids.clear()
+    recover_set(cand)
+    attach_existing_refs(cand)
     pending_md, dangling = externalize_set(cand)
     for key in ("morning", "evening"):
         arr = cand.get(key, [])
         for i in range(min(2, len(arr))):
-            arr[i] = compact_oldest(arr[i])
+            compacted, removed = compact_oldest(arr[i])
+            arr[i] = compacted
+            aid = compacted.get("id")
+            if aid:
+                trimmed_ids.append(aid)
+            if removed:
+                if aid:
+                    structured.setdefault(aid, {}).update(removed)
+                    compacted["structured_file"] = structured_ref(aid)
     size = write_compact(cand, "/tmp/_fit.json")
     if size > SIZE_LIMIT:
         print(f"[fit] ERROR 精简后仍 {size} > {SIZE_LIMIT}，请人工检查")
-    return cand, "3+3+2 (硬保底，最老两条已精简)", pending_md, dangling
+    return (cand, "3+3+2 (硬保底，最老两条已精简)", pending_md, dangling,
+            dict(structured), list(trimmed_ids))
 
 
 
@@ -290,6 +527,7 @@ def parse_args(argv):
           deploy.py 2026-11-02
           deploy.py --type=evening --date=2026-11-02
           deploy.py morning 2026-11-02 --baseline-ref <sha>
+          deploy.py morning 2026-11-02 --dry-run    （只算不传，便于本地验证）
 
     ⚠️ 2026-10-31 彩排发现的 bug：旧逻辑靠「rtype 是否还是默认值」猜参数角色，
        会把 `morning` 当日期、把 `2026-11-02` 当类型，导致找错文件直接退出。
@@ -297,6 +535,7 @@ def parse_args(argv):
     rtype = "morning"
     date = datetime.now().strftime("%Y-%m-%d")
     baseline_ref = None
+    dry_run = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -305,6 +544,8 @@ def parse_args(argv):
             i += 1
         elif a.startswith("--baseline-ref="):
             baseline_ref = a.split("=", 1)[1]
+        elif a == "--dry-run":
+            dry_run = True
         elif a.startswith("--type="):
             v = a.split("=", 1)[1]
             if v in VALID_TYPES:
@@ -324,13 +565,15 @@ def parse_args(argv):
         else:
             print(f"WARN: 无法识别的参数 {a}，忽略")
         i += 1
-    return rtype, date, baseline_ref
+    return rtype, date, baseline_ref, dry_run
 
 
 def main():
-    rtype, date, baseline_ref = parse_args(sys.argv[1:])
+    rtype, date, baseline_ref, dry_run = parse_args(sys.argv[1:])
 
     print(f"=== 部署 {rtype} {date} ===")
+    if dry_run:
+        print("[dry-run] 只在本地演算，**不会 PUT 任何文件到 GitHub**")
     if baseline_ref:
         print(f"[baseline] 从指定 ref 拉基线: {baseline_ref}")
 
@@ -390,8 +633,12 @@ def main():
         # deep copy：后面的 fit_size 会外置/截断 d 里的条目，
         # archive 必须保存**未截断的完整版**
         for x in copy.deepcopy(d.get(k, [])):
-            if x.get("id"):
-                m[x["id"]] = x
+            if not x.get("id"):
+                continue
+            # ⚠️ 占位符不覆盖富字段：v3 里的条目可能已被 compact_oldest 裁成占位符，
+            #    直接写回 archive 会把 archive 里保存的完整版冲掉 → 历史结构化数据永久丢失。
+            merged, _changed = merge_richer(m.get(x["id"]), x)
+            m[x["id"]] = merged
         archive[k] = sorted(m.values(), key=lambda x: x.get("date", ""))
     archive["updated_at"] = d["updated_at"]
     arch_size = write_compact(archive, "data/archive.json")
@@ -400,8 +647,15 @@ def main():
 
     # 3) fit_size：优先外置/精简内容，最后才减条目（硬保底 3+3+2）
     content_dir = BASE / "data"
+    remote_structured = set()
+    try:
+        remote_structured = list_remote_structured()
+        print(f"[structured] 远端 data/{STRUCTURED_DIR}/ 已有 {len(remote_structured)} 个文件")
+    except Exception as e:
+        print(f"[structured] WARN 列远端 structured 目录失败({e})，跳过引用补齐")
     ids_before = {x.get("id") for k in ("morning", "evening", "weekly") for x in d.get(k, []) if x.get("id")}
-    d, fit_desc, pending_md, dangling = fit_size(d, content_dir)
+    d, fit_desc, pending_md, dangling, structured, trimmed_ids = fit_size(
+        d, content_dir, archive, remote_structured)
     ids_after = {x.get("id") for k in ("morning", "evening", "weekly") for x in d.get(k, []) if x.get("id")}
     dropped = sorted(ids_before - ids_after)
     final_size = write_compact(d, "dashboard-data-v3.json")
@@ -416,8 +670,47 @@ def main():
         print(f"[fit]    （完整历史仍在 data/archive.json，可用 archive 重建恢复）")
     else:
         print("[fit] ✅ 无条目被裁掉")
+    if trimmed_ids:
+        print(f"[fit] ℹ️ 字段被精简过的条目（{len(trimmed_ids)} 条）：{trimmed_ids}")
     if final_size > SIZE_LIMIT:
         print(f"[ERROR] 最终体积 {final_size} > {SIZE_LIMIT}，CDN 可能截断！")
+
+    # 3.45) 结构化字段外置：被精简掉的字段不丢，写进 data/structured/{id}.json
+    #        条目里已带 structured_file 引用，前端渲染时按需 fetch 回来合并。
+    structured_dir = content_dir / STRUCTURED_DIR
+    structured_dir.mkdir(parents=True, exist_ok=True)
+    pending_structured = []
+    for aid in sorted(structured.keys()):
+        payload = structured.get(aid) or {}
+        if not payload:
+            continue
+        payload = cap_structured_payload(dict(payload))
+        fname = structured_ref(aid)                    # structured/{id}.json（相对 data/）
+        size = write_compact(payload, structured_dir / Path(fname).name)
+        rel_path = f"data/{fname}"
+        pending_structured.append(rel_path)
+        print(f"[structured] {aid}：{len(payload)} 个字段 → {rel_path}（{size} bytes）")
+        print(f"[structured]     字段：{', '.join(sorted(payload.keys()))}")
+    if pending_structured:
+        print(f"[structured] 共 {len(pending_structured)} 条的结构化字段已外置到 data/{STRUCTURED_DIR}/")
+    else:
+        print("[structured] 无结构化字段需要外置（本次未触发字段精简）")
+
+    # 3.46) structured 悬空审计：v3 里引用了但远端不存在的结构化文件 → 面板会是空的
+    dangling_structured = []
+    audited_s = set()
+    for k in ("morning", "evening", "weekly"):
+        for it in d.get(k, []):
+            f = it.get("structured_file")
+            if f and f not in audited_s:
+                audited_s.add(f)
+                if get_remote_sha(f"data/{f}") is None and f"data/{f}" not in pending_structured:
+                    print(f"🚨 [structured审计] data/{f} 远端不存在（结构化面板会是空的）")
+                    dangling_structured.append((k, it.get("id"), f))
+    if dangling_structured:
+        print(f"🚨 [structured审计] 共 {len(dangling_structured)} 处悬空引用 —— 必须补传结构化文件！")
+    else:
+        print(f"[structured审计] {len(audited_s)} 个 structured_file 引用全部有效 ✅")
 
     # 3.4) md 悬空审计：v3 里引用了但远端不存在的正文文件 → 看板拉正文会 404
     #      （2026-11-02 事故：条目手填 content_md_file，文件却从未 PUT）
@@ -439,13 +732,34 @@ def main():
     for rel_path in pending_md:
         src = BASE / rel_path
         if src.exists():
+            if dry_run:
+                print(f"  [dry-run] 跳过 PUT {rel_path}")
+                continue
             put_file(rel_path, src.read_bytes(), f"chore: 外置正文 {rel_path}")
+
+    # 3.55) 上传外置的结构化字段文件（内容一致则跳过 → 幂等，不产生无意义 commit）
+    for rel_path in pending_structured:
+        src = BASE / rel_path
+        if not src.exists():
+            continue
+        if dry_run:
+            print(f"  [dry-run] 跳过 PUT {rel_path}")
+            continue
+        data_bytes = src.read_bytes()
+        remote_same, _rsha = pull_remote(rel_path)
+        if remote_same == data_bytes:
+            print(f"  SKIP {rel_path}: 远端内容已一致（幂等）")
+            continue
+        put_file(rel_path, data_bytes, f"chore: 外置结构化字段 {rel_path}")
 
     # 3.6) 上传全量历史归档（周报读它拿完整历史）
     arch_local = BASE / "data" / "archive.json"
     if arch_local.exists() and get_remote_sha("data/archive.json"):
-        put_file("data/archive.json", arch_local.read_bytes(),
-                 f"chore: 更新全量历史归档 ({rtype} {date})")
+        if dry_run:
+            print(f"  [dry-run] 跳过 PUT data/archive.json")
+        else:
+            put_file("data/archive.json", arch_local.read_bytes(),
+                     f"chore: 更新全量历史归档 ({rtype} {date})")
 
     # 4) PUT 上传（只 update 已有文件，带 sha）
     for rel in DEPLOY_FILES:
@@ -453,10 +767,15 @@ def main():
             print(f"SKIP {rel}: 远端不存在（禁止 create 新文件）")
             continue
         local = BASE / rel
+        if dry_run:
+            print(f"  [dry-run] 跳过 PUT {rel}（{local.stat().st_size} bytes）")
+            continue
         put_file(rel, local.read_bytes(),
                  f"feat: add {rtype} {date} (m={len(d['morning'])} e={len(d['evening'])} w={len(d['weekly'])})")
 
     print("=== 完成 ===")
+    if dry_run:
+        print("[dry-run] 以上全部为本地演算，GitHub 上没有任何改动")
     print("验证：curl -sI https://ceciliachung1123-rgb.github.io/ai-invest-dashboard/dashboard-data-v3.json")
     return 0
 
